@@ -14,18 +14,18 @@ Di OMP-IMPA, berkas dipisahkan secara tegas antara **Mesin Plugin Global** dan *
 ```
                        ┌─────────────────────────────────────────────────────────────┐
                        │ 1. MESIN PLUGIN OMP-IMPA (Tersimpan di Luar Repo Target)    │
-                       │    Lokasi: `/home/aulia/ompimpa` atau `~/.claude/plugins/`   │
+                       │    Lokasi: `/path/to/ompimpa` atau `~/.omp/plugins/`        │
                        └─────────────────────────────────────────────────────────────┘
                                                       │
                        • Berisi: `agents/`, `commands/`, `skills/`, `rules/`, `bin/`
-                       • Didaftarkan sekali ke OMP via `bun run src/cli.ts link`
+                       • Didaftarkan sekali ke OMP via `omp plugin link /path/to/ompimpa`
                        • DIBAGI BERSAMA ke seluruh proyek Phoenix di mesin Anda.
                        • TIDAK PERLU disalin ke dalam repo proyek target.
                                                       │
                                                       │ Diinjeksi saat `ompimpa init`
                                                       ▼
                        ┌─────────────────────────────────────────────────────────────┐
-                       │ 2. BERKAS TATA KELOLA PROYEK (Di Dalam Repo Target `mimar`) │
+                       │ 2. BERKAS TATA KELOLA PROYEK (Di Dalam Repo Target Phoenix) │
                        └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -33,7 +33,7 @@ Di OMP-IMPA, berkas dipisahkan secara tegas antara **Mesin Plugin Global** dan *
 
 ## 2. Struktur Berkas di Dalam Proyek Target & Pemisahan `_ompimpa/` vs `docs/`
 
-Saat Anda menjalankan `ompimpa init` di proyek Phoenix target (misalnya `mimar`), sistem memisahkan dengan tegas antara **Artefak Tata Kelola Internal Mesin (`_ompimpa/`)** dan **Dokumentasi Resmi Proyek (`docs/`)**:
+Saat Anda menjalankan `ompimpa init` di proyek Phoenix target, sistem memisahkan dengan tegas antara **Artefak Tata Kelola Internal Mesin (`_ompimpa/`)** dan **Dokumentasi Resmi Proyek (`docs/`)**:
 
 ```
 target_phoenix_project/

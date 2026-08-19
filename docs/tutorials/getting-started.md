@@ -9,15 +9,21 @@ Sebelum memulai, pastikan sistem Anda memiliki:
 1. **Oh My Pi (`omp`)**: Terpasang dan dapat dijalankan di terminal (`omp --version`).
 2. **Bun**: Runtime JavaScript/TypeScript (`bun --version`).
 3. **Elixir & Phoenix**: Proyek Phoenix yang aktif dengan `mix.exs`.
+4. **Git**: Version control untuk pelacakan kode.
 
 ---
 
-## Langkah 1: Tautkan Plugin ke OMP
-Langkah pertama adalah mendaftarkan direktori plugin `ompimpa` ke engine OMP lokal Anda:
+## Langkah 1: Klon dan Tautkan Plugin ke OMP
+Unduh repositori OMP-IMPA dan daftarkan ke engine OMP lokal Anda:
 
 ```bash
-cd /home/aulia/ompimpa
-bun run src/cli.ts link
+# 1. Klon repositori OMP-IMPA
+git clone https://github.com/auliabismar/ompimpa.git
+cd ompimpa
+
+# 2. Tautkan plugin ke OMP
+omp plugin link .
+# atau: bun run src/cli.ts link
 ```
 
 **Verifikasi:**
@@ -30,11 +36,15 @@ npm Plugins:
 ---
 
 ## Langkah 2: Inisialisasi Proyek Phoenix Target
-Pindah ke direktori proyek Phoenix Anda (misalnya `mimar`) dan jalankan inisialisasi:
+Pindah ke direktori proyek Phoenix Anda dan jalankan inisialisasi:
 
 ```bash
 cd /path/to/my_phoenix_app
-/home/aulia/ompimpa/bin/ompimpa init
+
+# Jalankan inisialisasi dari folder plugin yang Anda klon
+/path/to/ompimpa/bin/ompimpa init
+# atau:
+bun /path/to/ompimpa/src/cli.ts init
 ```
 
 Perintah ini akan secara otomatis:
@@ -50,7 +60,7 @@ Perintah ini akan secara otomatis:
 Jalankan diagnosa kesehatan proyek:
 
 ```bash
-/home/aulia/ompimpa/bin/ompimpa doctor
+/path/to/ompimpa/bin/ompimpa doctor
 ```
 
 Pastikan semua checklist konfigurasi dan toolchain (`mix`, `git`, `bun`, `rtk`) bertanda `[FOUND]` dan `[INSTALLED]`.
