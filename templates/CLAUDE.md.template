@@ -1,0 +1,6 @@
+# OMP-IMPA Project Rules
+
+## Aturan Inti
+- Jalankan `/review` sebelum melakukan commit kode.
+- Jalankan `/verify` untuk memastikan seluruh tes hijau dan tidak ada warning kompilator.
+- Patuhi 26 Hukum Besi Elixir yang tercantum di `AGENTS.md`.

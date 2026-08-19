@@ -1,0 +1,31 @@
+{
+  "name": "ompimpa",
+  "version": "1.0.0",
+  "description": "Integrated Modular Phoenix Architecture for Oh My Pi",
+  "bin": {
+    "ompimpa": "./bin/ompimpa"
+  },
+  "type": "module",
+  "scripts": {
+    "test": "bun test",
+    "doctor": "bun run src/cli.ts doctor",
+    "init": "bun run src/cli.ts init",
+    "verify": "bun run src/cli.ts verify"
+  },
+  "keywords": [
+    "omp-plugin",
+    "agent-plugin",
+    "phoenix",
+    "elixir",
+    "ash",
+    "liveview",
+    "bmad",
+    "tea",
+    "atdd"
+  ],
+  "author": "Aulia",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}

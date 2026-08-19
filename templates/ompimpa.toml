@@ -1,0 +1,78 @@
+# ompimpa.toml - Konfigurasi Tata Kelola Proyek Phoenix (OMP-IMPA)
+[project]
+name = "my_app"
+framework = "phoenix"
+
+[locale]
+communication_language = "id"    # Bahasa agen saat berdiskusi di chat ("id" | "en")
+document_output_language = "id"  # Bahasa dokumen resmi PRD, ADR, dan Diátaxis ("id" | "en")
+
+[governance]
+enable_party_mode = true         # Aktifkan musyawarah meja bundar saat ideasi (/ompimpa:ideate)
+enable_prd_adr = true            # Aktifkan penyusunan Master PRD dan MADR ADR
+artifacts_dir = "_ompimpa"       # Direktori penyimpanan artefak internal PRD, ADR, dan status
+
+[quality]
+enable_atdd = true               # Wajibkan tes merah Red-Phase sebelum koding
+quality_score_floor = 90         # Batas skor review minimal kelulusan (0-100)
+warnings_as_errors = true        # mix compile --warnings-as-errors
+max_dev_retries = 3              # Circuit breaker: eskalasi ke manusia jika 3x gagal tes beruntun
+
+# Konfigurasi Closed-Loop Review & Triage di Sesi Dev:
+auto_macro_review_in_dev = true  # Jalankan full Macro-Review (4-Jalur) di setiap akhir eksekusi story
+auto_triage_and_fix = true       # Otomatis triage temuan P0/P1 dan perbaiki sebelum commit final
+
+# Target Non-Functional Requirements (NFR)
+[quality.nfr]
+target_p95_latency_ms = 50       # Target latensi respons p95 (ms) pada naskah PRD
+
+# Langkah-Langkah Verifikasi Otomatis
+[quality.verify]
+steps = [
+  "compile --warnings-as-errors",
+  "format --check-formatted",
+  "test"
+]
+
+# ==========================================
+# Manajemen Sumber Daya Mesin & Konkurensi
+# ==========================================
+[resources]
+max_concurrency = 2              # Batas subagent paralel yang aktif bersamaan (mencegah lonjakan RAM/CPU)
+use_git_worktrees = true         # Eksekusi task paralel di Git Worktree terisolasi (~/.omp/wt/)
+shared_lsp_server = true         # Gunakan 1 instance LSP bersama untuk seluruh subagent
+
+# ==========================================
+# Pemetaan Model Subagent (Terkoneksi ke OMP Roles)
+# ==========================================
+[models]
+ideate = "slow"                  # Rohana Kudus & Tan Malaka (Deep TRIZ & First Principles)
+prd = "plan"                     # H. Agus Salim (Master PRD & Architecture Planning)
+adr = "plan"                     # H. Agus Salim (Architecture Decision Records)
+ui = "default"                   # Marah Rusli (HEEx & Tailwind CSS Visual Design)
+test = "default"                 # Tuanku Imam Bonjol (Red-Phase ATDD Scaffolding)
+dev = "default"                  # Backend Specialists (Ash, LiveView, Ecto, Oban, OTP)
+ironlaw = "smol"                 # Hj. Rasuna Said (Fast & deterministic Iron Law verification)
+security = "slow"                # Bagindo Azizchan (Deep perimeter security & vulnerability audit)
+debug = "slow"                   # Adinegoro (4-track deep root cause investigation)
+doc = "default"                  # Mohammad Yamin (Diátaxis User, Admin, Dev Guides)
+
+[stacks]
+use_ash_framework = true         # Set false jika menggunakan Vanilla Ecto
+use_oban = true                  # Set false jika tidak menggunakan Oban
+use_tailwind = true
+
+[stacks.liveview]
+stream_threshold_rows = 100      # Batas jumlah baris data sebelum wajib menggunakan LiveView Streams
+
+[documentation]
+diataxis_format = true           # Terapkan standar 4 kuadran Diátaxis di folder docs/
+output_dir = "docs"              # Target folder untuk dokumentasi Diátaxis resmi proyek
+
+[tools]
+enable_tidewave = true           # Aktifkan Tidewave MCP untuk inspeksi runtime BEAM live
+enable_compound_memory = true    # Simpan dan indeks solusi teruji di _ompimpa/solutions/
+
+[runtime_verification]
+browser_e2e = true               # Buka Chromium untuk verifikasi visual jalur kritis
+in_process_liveview = true       # Jalankan Phoenix.LiveViewTest in-process

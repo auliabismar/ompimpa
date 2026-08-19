@@ -1,0 +1,23 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "ompimpa",
+  "version": "1.0.0",
+  "description": "Integrated Modular Phoenix Architecture for Oh My Pi - Synthesizing BMAD Method (CIS + BMM + TEA) and Phoenix/Ash Specialist Layer",
+  "keywords": [
+    "omp",
+    "phoenix",
+    "elixir",
+    "liveview",
+    "ash",
+    "ecto",
+    "oban",
+    "bmad",
+    "tea",
+    "atdd",
+    "cis"
+  ],
+  "author": {
+    "name": "Aulia"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,60 @@
+# ==========================================
+# Ideation & Local Notes (Tidak di-commit)
+# ==========================================
+ompimpa-idea.md
+.mcp.json
+mcp.json
+
+# ==========================================
+# Upstream & Local References (Tidak di-commit)
+# ==========================================
+_upstream/
+.references/
+
+# ==========================================
+# Node / Bun / Package Dependencies
+# ==========================================
+node_modules/
+.bun/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ==========================================
+# OMP / Agent Session Runtime & Caches
+# ==========================================
+.omp/
+.claude/sessions/
+.claude/file-history/
+logs/
+*.log
+
+# ==========================================
+# Environment Variables & Secrets
+# ==========================================
+.env
+.env.local
+.env.*.local
+
+# ==========================================
+# Temporary & Test Output Folders
+# ==========================================
+tmp/
+temp/
+.tmp/
+coverage/
+*.bak
+*.tmp
+
+# ==========================================
+# Operating System & Editor Files
+# ==========================================
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json

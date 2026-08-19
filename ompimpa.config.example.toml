@@ -1,0 +1,76 @@
+# ompimpa.toml (Target Project Configuration)
+[project]
+name = "my_app"
+framework = "phoenix"
+
+[locale]
+communication_language = "id"    # Language used by agents in chat ("id" | "en")
+document_output_language = "id"  # Language used in PRD, ADR, and Diataxis docs ("id" | "en")
+
+[governance]
+enable_party_mode = true         # Enable multi-persona round-table discussions for /ompimpa:ideate
+enable_prd_adr = true            # Enable Master PRD and MADR 3.0+ ADR generation
+artifacts_dir = "_ompimpa"       # Directory for internal PRD, ADR, and status files
+
+[quality]
+enable_atdd = true               # Enforce Red-Phase ATDD before code implementation
+quality_score_floor = 90         # Minimum test quality scorecard threshold (0-100)
+warnings_as_errors = true        # Enforce mix compile --warnings-as-errors
+max_dev_retries = 3              # Circuit breaker: escalate to human after 3 failed test iterations
+auto_macro_review_in_dev = true  # Run full 4-track Macro-Review at the end of story execution
+auto_triage_and_fix = true       # Automatically triage P0/P1 findings and remediate before final commit
+
+# Non-Functional Requirements (NFR) Targets
+[quality.nfr]
+target_p95_latency_ms = 50       # Target p95 response latency (ms) for PRD non-functional requirements
+
+# Verification Steps
+[quality.verify]
+steps = [
+  "compile --warnings-as-errors",
+  "format --check-formatted",
+  "test"
+]
+
+# ==========================================
+# Resource & Concurrency Management
+# ==========================================
+[resources]
+max_concurrency = 2              # Maximum parallel subagents running compilation/tests (prevents RAM/CPU exhaustion)
+use_git_worktrees = true         # Execute parallel tasks in isolated Git Worktrees (~/.omp/wt/)
+shared_lsp_server = true         # Use a single shared LSP instance across subagents
+
+# ==========================================
+# Subagent Model Roles Mapping (OMP Integration)
+# ==========================================
+[models]
+ideate = "slow"                  # Rohana Kudus & Tan Malaka (Deep TRIZ & First Principles reasoning)
+prd = "plan"                     # H. Agus Salim (Master PRD & Architecture Planning)
+adr = "plan"                     # H. Agus Salim (Architecture Decision Records)
+ui = "default"                   # Marah Rusli (HEEx & Tailwind CSS Visual Design)
+test = "default"                 # Tuanku Imam Bonjol (Red-Phase ATDD Scaffolding)
+dev = "default"                  # Backend Specialists (Ash, LiveView, Ecto, Oban, OTP)
+ironlaw = "smol"                 # Hj. Rasuna Said (Fast & deterministic Iron Law verification)
+security = "slow"                # Bagindo Azizchan (Deep perimeter security & vulnerability audit)
+debug = "slow"                   # Adinegoro (4-track deep root cause investigation)
+doc = "default"                  # Mohammad Yamin (Diátaxis User, Admin, Dev Guides)
+
+[stacks]
+use_ash_framework = true         # Set false for Vanilla Phoenix + Ecto
+use_oban = true                  # Set false if not using Oban background jobs
+use_tailwind = true
+
+[stacks.liveview]
+stream_threshold_rows = 100      # Data row threshold before LiveView Streams are strictly required
+
+[documentation]
+diataxis_format = true           # Structure all project guides into 4 Diataxis quadrants in docs/
+output_dir = "docs"              # Target directory for official project Diátaxis documentation
+
+[tools]
+enable_tidewave = true           # Enable Tidewave MCP for live BEAM runtime inspection
+enable_compound_memory = true    # Index proven bug fixes and decisions in _ompimpa/solutions/
+
+[runtime_verification]
+browser_e2e = true               # Enable Headless Chromium verification for critical paths
+in_process_liveview = true       # Run Phoenix.LiveViewTest in-process (~5ms)

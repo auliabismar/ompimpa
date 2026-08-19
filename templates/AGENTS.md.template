@@ -1,0 +1,25 @@
+# Instruksi Agen OMP-IMPA (Integrated Modular Phoenix Architecture)
+
+Proyek ini dikelola menggunakan metodologi **OMP-IMPA** yang menggabungkan prinsip produk BMAD, keahlian mendalam Elixir/Phoenix, dan mesin eksekusi paralel OMP.
+
+## 1. Siklus Hidup 5-Tahap Terpadu
+1. **Discovery & Produk**: Jalankan `/ideate` (Rohana Kudus & Tan Malaka) dan `/prd` (H. Agus Salim) untuk mengunci spesifikasi sebelum koding.
+2. **Desain Visual & UX**: Jalankan `/ui` (Marah Rusli) untuk menyusun komponen HEEx & Tailwind CSS.
+3. **Arsitektur Pengujian**: Jalankan `/atdd` (Tuanku Imam Bonjol) untuk menyiapkan tes merah (*Red-Phase*) sebelum implementasi backend.
+4. **Eksekusi Spesialis**: Gunakan spesialis `ompimpa-ash`, `ompimpa-liveview`, `ompimpa-ecto`, `ompimpa-oban`, `ompimpa-otp`.
+5. **Review Paralel**: Jalankan `/review` bersama `ompimpa-ironlaw` (Hj. Rasuna Said) dan `ompimpa-security` (Bagindo Azizchan).
+6. **Verifikasi Mutu**: Jalankan `/verify` (`mix compile --warnings-as-errors` + `mix test`).
+7. **Dokumentasi Diátaxis**: Jalankan `/doc` (Mohammad Yamin) untuk memperbarui panduan User, Admin, dan Dev.
+
+## 2. 26 Hukum Besi Elixir (Non-Negotiable)
+- Dilarang tipe `:float` untuk uang/saldo (Wajib `:decimal` / integer sen).
+- Wajib verifikasi otorisasi socket di SETIAP `handle_event/3`.
+- Wajib LiveView Streams (`stream/3`) untuk daftar data > 100 baris.
+- Wajib operator pinning `^` pada query Ecto.
+- Seluruh worker Oban wajib idempotent dengan string keys.
+- Dilarang `String.to_atom/1` pada input dari luar.
+- Kebijakan otorisasi Ash wajib *fail-closed* (*default deny*).
+- Wajib verifikasi `mix compile --warnings-as-errors` dan `mix test` sebelum menyatakan pekerjaan selesai.
+
+## 3. Konfigurasi Proyek
+Konfigurasi modularitas diatur dalam `ompimpa.toml`.
