@@ -22,7 +22,7 @@ bun run src/cli.ts link
 
 **Verifikasi:**
 Jalankan `omp plugin list`. Anda akan melihat:
-```
+```text
 npm Plugins:
 ● ompimpa@1.0.0
 ```
@@ -39,6 +39,8 @@ cd /path/to/my_phoenix_app
 
 Perintah ini akan secara otomatis:
 - Menghasilkan file konfigurasi `ompimpa.toml`.
+- Menyiapkan direktori tata kelola internal `_ompimpa/` (`prd/`, `adr/`, `status/`, `solutions/`, `ideation/`).
+- Menyiapkan kerangka dokumentasi resmi proyek di `docs/` (`tutorials/`, `how-to/`, `reference/`, `explanation/`).
 - Menginjeksi file instruksi konteks `AGENTS.md` dan `CLAUDE.md`.
 - Memasang hook pre-commit `.git/hooks/pre-commit` untuk perlindungan 26 Hukum Besi.
 
@@ -68,13 +70,13 @@ Di dalam prompt OMP, jalankan alur berurutan berikut:
 ```text
 /ompimpa:ideate "Fitur transfer saldo instan antar-pengguna dengan PIN keamanan"
 ```
-*Rohana Kudus dan Tan Malaka akan membedah ide, menggali persona, dan melarutkan kontradiksi teknis.*
+*Rohana Kudus dan Tan Malaka akan membedah ide, menggali persona, dan melarutkan kontradiksi teknis di `_ompimpa/ideation/`.*
 
 ### 2. Kunci Spesifikasi Master PRD
 ```text
 /ompimpa:prd "Transfer Saldo Instan"
 ```
-*H. Agus Salim akan menyusun Master PRD lengkap dengan Epics & Slices Spine di `docs/prd/`.*
+*H. Agus Salim akan menyusun Master PRD lengkap dengan Epics & Slices Spine di `_ompimpa/prd/`.*
 
 ### 3. Buat Tes Merah (Red-Phase ATDD)
 ```text
@@ -82,11 +84,11 @@ Di dalam prompt OMP, jalankan alur berurutan berikut:
 ```
 *Tuanku Imam Bonjol akan menganalisis acceptance criteria dan membuat tes ExUnit yang berstatus MERAH.*
 
-### 4. Eksekusi Koding Otonom
+### 4. Eksekusi Koding Otonom (Closed-Loop)
 ```text
 /ompimpa:dev
 ```
-*Spesialis backend menulis kode di isolated git worktree hingga tes merah berubah menjadi HIJAU.*
+*Spesialis backend menulis kode di isolated git worktree hingga tes merah berubah menjadi HIJAU, lalu otomatis menjalankan Micro/Macro-Review, triage, dan commit.*
 
 ### 5. Review & Verifikasi Kualitas
 ```text
@@ -97,8 +99,8 @@ Di dalam prompt OMP, jalankan alur berurutan berikut:
 
 ### 6. Dokumentasikan Panduan Diátaxis
 ```text
-/ompimpa:doc user --story 1.1
+/ompimpa:doc user --epic 1
 ```
-*Mohammad Yamin akan menghasilkan User's Guide resmi di `docs/user/`.*
+*Mohammad Yamin akan menghasilkan panduan resmi di folder `docs/`.*
 
 Selamat! Anda telah menyelesaikan siklus rekayasa otonom pertama dengan OMP-IMPA.
