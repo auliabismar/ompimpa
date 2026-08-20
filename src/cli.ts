@@ -246,16 +246,7 @@ in_process_liveview = true       # Run Phoenix.LiveViewTest in-process (~5ms)
     const yamlContent = `# feature-status.yaml - OMP-IMPA Feature & Slice Roadmap State
 # Auto-synced during /ompimpa:dev execution
 
-features:
-  # Example Feature Entry (created from /ompimpa:prd)
-  # feature-1:
-  #   title: "User Authentication"
-  #   status: "ready-for-dev"
-  #   slices:
-  #     slice-1.1:
-  #       title: "Passkey Registration"
-  #       status: "ready-for-dev"
-  #       atdd_test: "test/my_app_web/live/passkey_live_test.exs"
+features: {}
 `;
     await fs.writeFile(statusYamlPath, yamlContent, "utf-8");
     console.log("✅ Created _ompimpa/status/feature-status.yaml");
