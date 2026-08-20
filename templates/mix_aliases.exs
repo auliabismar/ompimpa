@@ -10,12 +10,13 @@
 #     "assets.build": ["tailwind default", "esbuild default"],
 #     "assets.deploy": ["tailwind default --minify", "esbuild default --minify", "phx.digest"],
 #     
-#     # OMP-IMPA Quality Aliases:
+#     # OMP-IMPA Fast Pre-Commit (Sub-2-Detik, tanpa menjalankan full test suite):
 #     precommit: [
 #       "compile --warnings-as-errors",
-#       "format --check-formatted",
-#       "test"
+#       "format --check-formatted"
 #     ],
+#     
+#     # OMP-IMPA Full Verification (Jalankan sebelum merge / /ompimpa:verify / CI):
 #     "impa.verify": [
 #       "compile --warnings-as-errors",
 #       "format --check-formatted",

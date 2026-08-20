@@ -6,6 +6,16 @@
     "ompimpa": "./bin/ompimpa"
   },
   "type": "module",
+  "omp": {
+    "extensions": [
+      "./hooks/ompimpa-guard.ts"
+    ]
+  },
+  "pi": {
+    "extensions": [
+      "./hooks/ompimpa-guard.ts"
+    ]
+  },
   "scripts": {
     "test": "bun test test/",
     "doctor": "bun run src/cli.ts doctor",

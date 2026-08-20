@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# OMP-IMPA Git Pre-Commit Quality Guard
+# OMP-IMPA Fast Git Pre-Commit Quality Guard (Sub-2-Detik)
+# Catatan: mix test global sengaja TIDAK dijalankan di sini agar proses commit tetap instan (<2s).
+# Pengujian menyeluruh dijalankan pada /ompimpa:verify atau pipeline CI.
 set -e
 
-echo "🛡️ [OMP-IMPA] Menjalankan Pre-Commit Quality Gate..."
+echo "🛡️ [OMP-IMPA] Menjalankan Fast Pre-Commit Quality Gate..."
 
-# 1. Pengecekan Cepat Pelanggaran Hukum Besi
-echo "🔍 [1/3] Memindai pelanggaran Hukum Besi Elixir..."
+# 1. Pengecekan Cepat Pelanggaran Hukum Besi (Diff Scanner)
+echo "🔍 [1/3] Memindai pelanggaran Hukum Besi Elixir pada staged diff..."
 if git diff --cached -S":float" -- lib/ | grep -E "amount|price|balance|total|uang|saldo|harga|fee" > /dev/null 2>&1; then
   echo "❌ [GAGAL] Hukum Besi #1 Dilanggar: Ditemukan tipe :float pada field keuangan/saldo!"
   echo "👉 Wajib gunakan :decimal atau integer sen."
@@ -18,7 +20,7 @@ if git diff --cached | grep -E "String\.to_atom\(" > /dev/null 2>&1; then
   exit 1
 fi
 
-# 2. Kompilasi Strict
+# 2. Kompilasi Strict (Inkremental)
 echo "⚙️ [2/3] Memeriksa kompilasi strict (warnings as errors)..."
 mix compile --warnings-as-errors
 
@@ -26,5 +28,5 @@ mix compile --warnings-as-errors
 echo "✨ [3/3] Memeriksa format kode Elixir..."
 mix format --check-formatted
 
-echo "🏆 [OMP-IMPA] Pre-Commit Guard Lolos 100%!"
+echo "🏆 [OMP-IMPA] Fast Pre-Commit Guard Lolos 100%!"
 exit 0

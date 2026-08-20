@@ -24,11 +24,12 @@ Plugin ini mengintegrasikan 3 pilar besar:
    - Audit keamanan perimeter oleh Bagindo Azizchan.
    - Investigasi bug mendalam oleh Djamaluddin Adinegoro.
    - Dokumentasi terstruktur 4 kuadran Diátaxis (User, Admin, Dev) oleh Mohammad Yamin.
-3. **OMP Native Execution Engine**:
-   - Konkurensi DAG subagent hingga 32 subagent paralel (`task`).
-   - Isolasi Git Worktree untuk pengerjaan slice independen.
-   - Language Server Protocol (`xd://lsp`) dan AST rewrites (`xd://ast_edit`).
-   - Bukti verifikasi visual via Headless Chromium (`xd://browser`).
+3. **OMP Native Execution Engine & Multi-Tier Guard**:
+   - **Tier 0**: TTSR Real-Time Stream Rules (`rules/elixir-*.md`) untuk interupsi dini saat LLM mengetik.
+   - **Tier 1**: OMP Runtime Guard Hook (`hooks/ompimpa-guard.ts`) untuk memblokir bypass `--no-verify` dan memadatkan output tes.
+   - **Tier 2**: Fast Git Pre-Commit Gate (`.git/hooks/pre-commit`) sub-2-detik (diff scan + compile + format).
+   - **Tier 3**: Panel Review 4-Jalur (`/ompimpa:review`) dan Full Verification Suite (`/ompimpa:verify`).
+   - Konkurensi DAG subagent hingga 32 subagent paralel (`task`) & isolasi Git Worktrees.
 
 ---
 
@@ -43,11 +44,11 @@ Plugin ini mengintegrasikan 3 pilar besar:
 
 [3. FASE DESAIN PENGUJIAN]  ───>  /ompimpa:atdd    (Risk Matrix P1-P4 & Red-Phase Tests)
 
-[4. FASE EKSEKUSI OTONOM]   ───>  /ompimpa:dev     (Story Loop + Micro-Review + State YAML)
+[4. FASE EKSEKUSI OTONOM]   ───>  /ompimpa:dev     (Scoped Test + Micro-Review + State YAML)
                             ───>  /ompimpa:course-correct (Pivot & Penyelarasan Rencana)
 
 [5. FASE REVIEW & PROOF]    ───>  /ompimpa:review  (Panel Review Paralel 4-Jalur)
-                            ───>  /ompimpa:verify  (Strict Compiler, Credo, Tests Loop)
+                            ───>  /ompimpa:verify  (Strict Compiler, Credo, Full Tests Loop)
 
 [6. FASE DOKUMENTASI & DOC] ───>  /ompimpa:doc     (Diátaxis User / Admin / Dev Guides)
 ```

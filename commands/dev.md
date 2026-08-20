@@ -18,7 +18,8 @@ Mengeksekusi siklus implementasi kode otonom berbasis state persisten di disk (`
 ```
 [1. BACA STATE DISK]  ──► Membaca `_ompimpa/status/feature-status.yaml`, ambil Story dengan `status: ready-for-dev`.
                                 │
-[2. CEK TES MERAH]    ──► Menjalankan `mix test <path_test.exs>` untuk memastikan status awal adalah FAIL.
+[2. CEK TES MERAH]    ──► ⚡ Menjalankan Scoped Test: `mix test <path_test.exs>` (Bukan `mix test` global).
+                          Memastikan status awal tes ATDD adalah FAIL (Red Phase).
                                 │
 [3. DISPATCH SPESIALIS]─► Memanggil subagent sesuai stack (`ompimpa-ash`, `ompimpa-liveview`, dll.)
                           di dalam Git Worktree terisolasi.
@@ -34,9 +35,17 @@ Mengeksekusi siklus implementasi kode otonom berbasis state persisten di disk (`
                           • Jika lolos / 0 Blocker: Lanjut ke commit.
                                 │
 [6. GIT COMMIT & SYNC]──► Jika lolos Re-Review:
-                          • Buat git commit: `feat(slice-1.1): implement <nama_story>`
+                          • Buat git commit (dilindungi OMP Guard Hook & Fast Pre-Commit Gate).
                           • Ubah status di `_ompimpa/status/feature-status.yaml` menjadi `status: done`.
                                 │
-[7. REKURSIVITAS]     ──► Jika memakai flag `--auto`: otomatis lanjut ke Story berikutnya.
+[7. REKURSIVITAS]     ──► Jika memakai flag `--auto`: Hook OMP `session_stop` otomatis melanjutkan ke Story berikutnya.
                           Jika tanpa flag: berhenti dan melaporkan hasilnya kepada Anda.
 ```
+
+## Aturan Kecepatan Pengujian (Scoped vs Global Test)
+* **DILARANG** menjalankan `mix test` tanpa argumen di tengah loop koding story.
+* **WAJIB** menjalankan scoped test hanya pada file tes slice aktif:
+  ```bash
+  mix test test/my_app_web/live/passkey_live_test.exs
+  ```
+* Pengujian global menyeluruh seluruh suite dicadangkan untuk perintah `/ompimpa:verify` saat seluruh fitur selesai.
