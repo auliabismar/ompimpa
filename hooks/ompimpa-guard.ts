@@ -158,10 +158,12 @@ export function checkDevLoopContinuation(cwd: string = process.cwd()): StopResul
     if (fs.existsSync(statusYamlPath)) {
       const content = fs.readFileSync(statusYamlPath, "utf-8");
 
-      // Cek apakah masih ada slice dengan status 'in-progress' atau 'ready-for-dev'
-      const hasPendingStory =
-        /status:\s*["']?(ready-for-dev|in-progress)["']?/i.test(content);
-
+      // Cek apakah masih ada slice dengan status 'in-progress' atau 'ready-for-dev' (mengabaikan baris komentar)
+      const hasPendingStory = content.split("\n").some((line) => {
+        const trimmed = line.trim();
+        if (trimmed.startsWith("#")) return false;
+        return /status:\s*["']?(ready-for-dev|in-progress)["']?/i.test(trimmed);
+      });
       if (hasPendingStory) {
         return {
           continue: true,

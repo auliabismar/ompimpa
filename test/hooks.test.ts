@@ -172,8 +172,25 @@ features:
       const res = checkDevLoopContinuation(tempDir);
       expect(res).toBeUndefined();
     });
-  });
 
+    it("should return undefined if status lines are commented out", async () => {
+      const statusFile = path.join(tempDir, "_ompimpa", "status", "feature-status.yaml");
+      await fs.writeFile(
+        statusFile,
+        `
+features:
+  # feature-1:
+  #   slices:
+  #     slice-1.1:
+  #       status: "ready-for-dev"
+`
+      );
+
+      const res = checkDevLoopContinuation(tempDir);
+      expect(res).toBeUndefined();
+    });
+
+  });
   describe("ompimpaGuard factory registration", () => {
     it("should register event handlers with OMP event bus", () => {
       const registeredEvents: string[] = [];
