@@ -1,26 +1,26 @@
-# Penjelasan: Struktur Berkas, Penempatan Plugin, & Pelacakan Git
+# Penjelasan: Struktur Berkas, Penempatan Plugin OMP, & Pelacakan Git
 
 Dokumen penjelasan (*Understanding-Oriented*) ini menjawab secara tuntas:
-1. **Di mana berkas-berkas mesin `ompimpa` berada setelah deployment/instalasi?**
+1. **Bagaimana `ompimpa` beroperasi sebagai OMP Plugin dan di mana berkasnya berada?**
 2. **Bagaimana pemisahan antara artefak internal tata kelola (`_ompimpa/`) dan dokumentasi resmi Diátaxis proyek (`docs/`)?**
 3. **Apakah berkas-berkas tersebut dimasukkan ke dalam Git?**
 
 ---
 
-## 1. Pemisahan Dua Lapisan: Plugin Engine vs Project Governance
+## 1. Pemisahan Dua Lapisan: OMP Plugin Engine vs Project Governance
 
-Di OMP-IMPA, berkas dipisahkan secara tegas antara **Mesin Plugin Global** dan **Tata Kelola Proyek Lokal**:
+Di ekosistem OMP, berkas dipisahkan secara tegas antara **Mesin Plugin Global** dan **Tata Kelola Proyek Lokal**:
 
 ```
                        ┌─────────────────────────────────────────────────────────────┐
-                       │ 1. MESIN PLUGIN OMP-IMPA (Tersimpan di Luar Repo Target)    │
-                       │    Lokasi: `/path/to/ompimpa` atau `~/.omp/plugins/`        │
+                       │ 1. MESIN PLUGIN OMP-IMPA (Tersimpan di Subsistem OMP)       │
+                       │    Lokasi: `~/.omp/plugins/` atau `github:auliabismar/ompimpa`│
                        └─────────────────────────────────────────────────────────────┘
                                                       │
-                       • Berisi: `agents/`, `commands/`, `skills/`, `rules/`, `bin/`
-                       • Didaftarkan sekali ke OMP via `omp plugin link /path/to/ompimpa`
-                       • DIBAGI BERSAMA ke seluruh proyek Phoenix di mesin Anda.
-                       • TIDAK PERLU disalin ke dalam repo proyek target.
+                       • Berisi: `agents/`, `commands/`, `skills/`, `rules/`, `hooks/`
+                       • Dipasang sekali: `omp plugin install github:auliabismar/ompimpa`
+                       • DIBAGI BERSAMA ke seluruh proyek Phoenix di laptop/mesin Anda.
+                       • TIDAK PERLU disalin atau di-clone ke dalam repo proyek target.
                                                       │
                                                       │ Diinjeksi saat `ompimpa init`
                                                       ▼
@@ -28,6 +28,13 @@ Di OMP-IMPA, berkas dipisahkan secara tegas antara **Mesin Plugin Global** dan *
                        │ 2. BERKAS TATA KELOLA PROYEK (Di Dalam Repo Target Phoenix) │
                        └─────────────────────────────────────────────────────────────┘
 ```
+
+### Mekanisme OMP Plugin Discovery:
+Saat dipasang sebagai plugin OMP:
+* **Manifest & Hook**: OMP membaca `package.json` (`omp.extensions`) dan `.omp-plugin/plugin.json`, lalu memuat `hooks/ompimpa-guard.ts` ke dalam event bus runtime.
+* **Commands**: Seluruh markdown di `commands/*.md` otomatis menjadi slash commands (`/ompimpa:ideate`, `/ompimpa:dev`, dll.) dengan autocomplete interaktif di TUI OMP.
+* **Subagents**: Seluruh markdown di `agents/*.md` otomatis terdaftar sebagai agen spesialis yang dapat dipanggil via `task(agent: "ompimpa-ash")`.
+* **TTSR Stream Rules**: Seluruh aturan di `rules/elixir-*.md` dimuat ke dalam *Time Traveling Stream Rules coordinator* untuk pencegahan *in-stream* seketika.
 
 ---
 
@@ -40,7 +47,7 @@ target_phoenix_project/
 ├── ompimpa.toml                       # [TRACKED IN GIT] Konfigurasi tata kelola & model
 ├── AGENTS.md                          # [TRACKED IN GIT] Konteks instruksi subagent
 ├── CLAUDE.md                          # [TRACKED IN GIT] Aturan ringkas proxy RTK
-├── .git/hooks/pre-commit              # [LOCAL ONLY] Hook pencegah pelanggaran Hukum Besi
+├── .git/hooks/pre-commit              # [LOCAL ONLY] Fast Pre-Commit Quality Gate (<2s)
 │
 ├── _ompimpa/                          # [TRACKED IN GIT - ARTEFAK INTERNAL TATA KELOLA AI]
 │   ├── status/

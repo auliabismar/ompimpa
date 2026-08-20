@@ -1,0 +1,36 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "ompimpa",
+  "owner": {
+    "name": "Aulia"
+  },
+  "metadata": {
+    "description": "Official OMP-IMPA Marketplace - Integrated Modular Phoenix Architecture for Oh My Pi",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "ompimpa",
+      "description": "Integrated Modular Phoenix Architecture for Oh My Pi - Synthesizing BMAD Method (CIS + BMM + TEA) and Phoenix/Ash Specialist Layer",
+      "source": "./",
+      "version": "1.0.0",
+      "category": "development",
+      "homepage": "https://github.com/auliabismar/ompimpa",
+      "repository": "https://github.com/auliabismar/ompimpa",
+      "license": "MIT",
+      "keywords": [
+        "omp",
+        "phoenix",
+        "elixir",
+        "liveview",
+        "ash",
+        "ecto",
+        "oban",
+        "bmad",
+        "tea",
+        "atdd",
+        "cis"
+      ]
+    }
+  ]
+}

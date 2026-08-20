@@ -86,7 +86,7 @@ Commands:
   init      Initialize OMP-IMPA configuration and agent prompts in current Phoenix project (Greenfield/Brownfield)
   doctor    Diagnose project setup, toolchain availability, and Iron Law violations
   verify    Execute strict Elixir quality gate (compile, format, credo, sobelow, tests)
-  link      Link this OMP-IMPA plugin into OMP environment
+  link      Link this OMP-IMPA plugin into local OMP environment
   version   Show version information
   help      Show this help message
 
@@ -96,6 +96,11 @@ Options:
   --oban        Force enable Oban background job worker configuration
   --no-oban     Force disable Oban presets
   --force       Overwrite existing configuration files
+
+Plugin Installation:
+  Global Install (Git):      omp plugin install github:auliabismar/ompimpa
+  Marketplace Install:       omp plugin marketplace add auliabismar/ompimpa && omp plugin install ompimpa@ompimpa
+  Local Link (Dev):          omp plugin link /path/to/ompimpa
 `);
 }
 
@@ -211,19 +216,22 @@ doc = "default"                  # Mohammad Yamin (Diátaxis User, Admin, Dev Gu
 
 [stacks]
 use_ash_framework = ${useAsh}     # Ash Framework or Vanilla Ecto
-use_oban = ${useOban}              # Background job processing
-use_tailwind = ${useTailwind}
+use_oban = ${useOban}              # Oban background job processor
+use_tailwind = ${useTailwind}          # Tailwind CSS styling
+
+[stacks.liveview]
+stream_threshold_rows = 100      # Rows threshold before mandatory LiveView Streams
 
 [documentation]
-diataxis_format = true           # Structure all guides into 4 Diataxis quadrants in docs/
-output_dir = "docs"              # Target directory for official project Diátaxis documentation
+diataxis_format = true           # Apply Diataxis 4-quadrant standard
+output_dir = "docs"              # Target directory for official Diataxis docs
 
 [tools]
-enable_tidewave = true           # Enable Tidewave MCP for live BEAM runtime inspection
-enable_compound_memory = true    # Index proven bug fixes and decisions in _ompimpa/solutions/
+enable_tidewave = true           # Enable Tidewave MCP for BEAM runtime live inspection
+enable_compound_memory = true    # Index and store proven solution patterns in _ompimpa/solutions/
 
 [runtime_verification]
-browser_e2e = true               # Enable Headless Chromium verification for critical paths
+browser_e2e = true               # Verify critical UI paths in Headless Chromium
 in_process_liveview = true       # Run Phoenix.LiveViewTest in-process (~5ms)
 `;
     await fs.writeFile(tomlPath, tomlContent, "utf-8");
@@ -289,7 +297,7 @@ features:
     if (await fileExists(templateHook)) {
       const content = await fs.readFile(templateHook, "utf-8");
       await fs.writeFile(preCommitHook, content, { mode: 0o755 });
-      console.log("✅ Installed .git/hooks/pre-commit (Iron Law & Quality Gate)");
+      console.log("✅ Installed .git/hooks/pre-commit (Fast Pre-Commit Quality Gate)");
     }
   }
 
@@ -322,23 +330,37 @@ async function handleDoctor(_flags: string[]) {
       issues++;
     }
   }
+
   // 2. Check OMP-IMPA TTSR Stream Rules
   console.log("\n🛡️ OMP TTSR Real-Time Stream Rules:");
   const rulesDir = path.join(REPO_ROOT, "rules");
   try {
     const ruleFiles = await fs.readdir(rulesDir);
-    const modularRules = ruleFiles.filter(f => f.startsWith("elixir-") && f.endsWith(".md") && !f.includes("iron-laws"));
+    const modularRules = ruleFiles.filter(
+      (f) => f.startsWith("elixir-") && f.endsWith(".md") && !f.includes("iron-laws")
+    );
     console.log(`  ✅ [ACTIVE] Loaded ${modularRules.length} modular TTSR real-time stream rule(s) in rules/`);
     for (const r of modularRules) {
       console.log(`     • ${r}`);
     }
-  } catch (err) {
+  } catch {
     console.log(`  ⚠️ [WARNING] Failed to load TTSR rules directory (${rulesDir})`);
   }
 
-  // 3. Check toolchains
+  // 3. Check OMP Plugin Manifests
+  console.log("\n🔌 OMP Plugin Manifests:");
+  const ompPluginJson = path.join(REPO_ROOT, ".omp-plugin", "plugin.json");
+  const ompMarketplaceJson = path.join(REPO_ROOT, ".omp-plugin", "marketplace.json");
+  if (await fileExists(ompPluginJson)) {
+    console.log(`  ✅ [FOUND] OMP Plugin manifest (.omp-plugin/plugin.json)`);
+  }
+  if (await fileExists(ompMarketplaceJson)) {
+    console.log(`  ✅ [FOUND] OMP Marketplace catalog (.omp-plugin/marketplace.json)`);
+  }
+
+  // 4. Check toolchains
   console.log("\n🛠️ Toolchain availability:");
-  const tools = ["mix", "git", "bun", "rtk"];
+  const tools = ["omp", "mix", "git", "bun", "rtk"];
   for (const tool of tools) {
     const res = await runCommand("which", [tool], targetDir, true);
     if (res.code === 0 && res.stdout.trim()) {

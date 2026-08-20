@@ -155,18 +155,25 @@ in_process_liveview = true       # Jalankan Phoenix.LiveViewTest in-process
 
 ## 5. Quick Start & Perintah Utama
 
-### 1. Klon & Tautkan Plugin
+### 1. Pasang Plugin OMP-IMPA
+Pilih salah satu cara pemasangan berikut:
 ```bash
-git clone https://github.com/auliabismar/ompimpa.git
-cd ompimpa
-omp plugin link .
+# Opsi A: Instalasi Langsung via Git (Direkomendasikan — 1 Perintah)
+omp plugin install github:auliabismar/ompimpa
+
+# Opsi B: Instalasi via OMP Marketplace
+omp plugin marketplace add auliabismar/ompimpa
+omp plugin install ompimpa@ompimpa
+
+# Opsi C: Local Link (Untuk Pengembangan / Kontributor)
+git clone https://github.com/auliabismar/ompimpa.git && cd ompimpa && omp plugin link .
 ```
 
 ### 2. Inisialisasi di Proyek Phoenix Target
 ```bash
 cd /path/to/my_phoenix_app
-/path/to/ompimpa/bin/ompimpa init
-/path/to/ompimpa/bin/ompimpa doctor
+ompimpa init
+ompimpa doctor
 ```
 
 ### 3. Slash Commands di Sesi OMP

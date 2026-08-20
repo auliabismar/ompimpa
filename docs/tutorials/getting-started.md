@@ -1,6 +1,6 @@
 # Tutorial: Memulai dengan OMP-IMPA dalam 15 Menit
 
-Dokumen ini adalah panduan pembelajaran langkah demi langkah (*Tutorial*) untuk menginstal, menginisialisasi, dan menjalankan siklus rekayasa otonom pertama Anda menggunakan **OMP-IMPA** pada aplikasi Phoenix.
+Dokumen ini adalah panduan pembelajaran langkah demi langkah (*Tutorial*) untuk menginstal, menginisialisasi, dan menjalankan siklus rekayasa otonom pertama Anda menggunakan **OMP-IMPA** sebagai OMP Plugin pada aplikasi Phoenix.
 
 ---
 
@@ -13,20 +13,37 @@ Sebelum memulai, pastikan sistem Anda memiliki:
 
 ---
 
-## Langkah 1: Klon dan Tautkan Plugin ke OMP
-Unduh repositori OMP-IMPA dan daftarkan ke engine OMP lokal Anda:
+## Langkah 1: Pasang Plugin OMP-IMPA ke OMP
 
+Pilih salah satu dari 3 cara instalasi plugin OMP berikut:
+
+### Opsi A: Instalasi Langsung via Git (Direkomendasikan — 1 Perintah)
 ```bash
-# 1. Klon repositori OMP-IMPA
-git clone https://github.com/auliabismar/ompimpa.git
-cd ompimpa
-
-# 2. Tautkan plugin ke OMP
-omp plugin link .
-# atau: bun run src/cli.ts link
+omp plugin install github:auliabismar/ompimpa
 ```
 
-**Verifikasi:**
+### Opsi B: Instalasi via OMP Marketplace
+```bash
+# Tambahkan marketplace OMP-IMPA
+omp plugin marketplace add auliabismar/ompimpa
+
+# Pasang plugin
+omp plugin install ompimpa@ompimpa
+```
+*Atau dari dalam sesi interaktif OMP:*
+```text
+/marketplace add auliabismar/ompimpa
+/marketplace install ompimpa@ompimpa
+```
+
+### Opsi C: Local Link (Untuk Pengembangan Lokal / Kontributor)
+```bash
+git clone https://github.com/auliabismar/ompimpa.git
+cd ompimpa
+omp plugin link .
+```
+
+### Verifikasi Instalasi Plugin:
 Jalankan `omp plugin list`. Anda akan melihat:
 ```text
 npm Plugins:
@@ -41,10 +58,8 @@ Pindah ke direktori proyek Phoenix Anda dan jalankan inisialisasi:
 ```bash
 cd /path/to/my_phoenix_app
 
-# Jalankan inisialisasi dari folder plugin yang Anda klon
-/path/to/ompimpa/bin/ompimpa init
-# atau:
-bun /path/to/ompimpa/src/cli.ts init
+# Jalankan inisialisasi tata kelola OMP-IMPA
+ompimpa init
 ```
 
 Perintah ini akan secara otomatis:
@@ -52,7 +67,7 @@ Perintah ini akan secara otomatis:
 - Menyiapkan direktori tata kelola internal `_ompimpa/` (`prd/`, `adr/`, `status/`, `solutions/`, `ideation/`).
 - Menyiapkan kerangka dokumentasi resmi proyek di `docs/` (`tutorials/`, `how-to/`, `reference/`, `explanation/`).
 - Menginjeksi file instruksi konteks `AGENTS.md` dan `CLAUDE.md`.
-- Memasang hook pre-commit `.git/hooks/pre-commit` untuk perlindungan 26 Hukum Besi.
+- Memasang Fast Git Pre-Commit Hook `.git/hooks/pre-commit` (sub-2-detik) untuk perlindungan 26 Hukum Besi.
 
 ---
 
@@ -60,10 +75,10 @@ Perintah ini akan secara otomatis:
 Jalankan diagnosa kesehatan proyek:
 
 ```bash
-/path/to/ompimpa/bin/ompimpa doctor
+ompimpa doctor
 ```
 
-Pastikan semua checklist konfigurasi dan toolchain (`mix`, `git`, `bun`, `rtk`) bertanda `[FOUND]` dan `[INSTALLED]`.
+Pastikan semua checklist konfigurasi, TTSR stream rules, plugin manifest, dan toolchain (`omp`, `mix`, `git`, `bun`, `rtk`) bertanda `[FOUND]` dan `[INSTALLED]`.
 
 ---
 
@@ -113,4 +128,4 @@ Di dalam prompt OMP, jalankan alur berurutan berikut:
 ```
 *Mohammad Yamin akan menghasilkan panduan resmi di folder `docs/`.*
 
-Selamat! Anda telah menyelesaikan siklus rekayasa otonom pertama dengan OMP-IMPA.
+Selamat! Anda telah menyelesaikan siklus rekayasa otonom pertama dengan OMP-IMPA sebagai OMP Plugin.
