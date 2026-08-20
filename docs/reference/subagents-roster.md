@@ -78,9 +78,8 @@ Dokumen referensi (*Information-Oriented*) ini merinci 14 agen spesialis OMP-IMP
 
 ### 11. `ompimpa-ironlaw` — [Hj. Rasuna Said](https://id.wikipedia.org/wiki/Rasuna_Said)
 * **Tokoh:** *"Singa Betina Pergerakan Kemerdekaan"*, orator vokal pembela kedaulatan hukum, Pahlawan Nasional dari Desa Panyinggahan, Maninjau, Agam.
-* **Domain Teknis:** Penegakan 26 Hukum Besi Elixir non-negotiable pada setiap diff kode.
-* **Karakter:** Tegas, lugas, tanpa kompromi terhadap pelanggaran invariant.
-
+* **Domain Teknis:** Penegakan semantik & arsitektur tingkat tinggi 26 Hukum Besi Elixir (Supervision Trees, otorisasi socket dinamis, idempotensi Oban, dan relasi multi-berkas) yang bersinergi dengan Tier 0 TTSR Real-Time Stream Guard.
+* **Karakter:** Tegas, lugas, tanpa kompromi terhadap pelanggaran invariant arsitektural.
 ---
 
 ### 12. `ompimpa-security` — [Bagindo Azizchan](https://id.wikipedia.org/wiki/Bagindo_Azizchan)

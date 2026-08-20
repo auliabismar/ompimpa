@@ -8,7 +8,8 @@ const REPO_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), 
 async function runCommand(
   cmd: string,
   args: string[],
-  cwd: string = process.cwd()
+  cwd: string = process.cwd(),
+  silent: boolean = false
 ): Promise<{ code: number; stdout: string; stderr: string }> {
   const { promise, resolve } = Promise.withResolvers<{ code: number; stdout: string; stderr: string }>();
   const proc = spawn(cmd, args, { cwd, stdio: ["inherit", "pipe", "pipe"] });
@@ -18,13 +19,13 @@ async function runCommand(
   proc.stdout?.on("data", (d) => {
     const str = d.toString();
     stdout += str;
-    process.stdout.write(str);
+    if (!silent) process.stdout.write(str);
   });
 
   proc.stderr?.on("data", (d) => {
     const str = d.toString();
     stderr += str;
-    process.stderr.write(str);
+    if (!silent) process.stderr.write(str);
   });
 
   proc.on("close", (code) => {
@@ -321,12 +322,25 @@ async function handleDoctor(_flags: string[]) {
       issues++;
     }
   }
+  // 2. Check OMP-IMPA TTSR Stream Rules
+  console.log("\n🛡️ OMP TTSR Real-Time Stream Rules:");
+  const rulesDir = path.join(REPO_ROOT, "rules");
+  try {
+    const ruleFiles = await fs.readdir(rulesDir);
+    const modularRules = ruleFiles.filter(f => f.startsWith("elixir-") && f.endsWith(".md") && !f.includes("iron-laws"));
+    console.log(`  ✅ [ACTIVE] Loaded ${modularRules.length} modular TTSR real-time stream rule(s) in rules/`);
+    for (const r of modularRules) {
+      console.log(`     • ${r}`);
+    }
+  } catch (err) {
+    console.log(`  ⚠️ [WARNING] Failed to load TTSR rules directory (${rulesDir})`);
+  }
 
-  // 2. Check toolchains
+  // 3. Check toolchains
   console.log("\n🛠️ Toolchain availability:");
   const tools = ["mix", "git", "bun", "rtk"];
   for (const tool of tools) {
-    const res = await runCommand("which", [tool]);
+    const res = await runCommand("which", [tool], targetDir, true);
     if (res.code === 0 && res.stdout.trim()) {
       console.log(`  ✅ [INSTALLED] ${tool}: ${res.stdout.trim()}`);
     } else {
@@ -372,4 +386,11 @@ async function handleLink(_flags: string[]) {
     console.error("❌ Failed to link plugin into OMP.");
     process.exit(res.code);
   }
+}
+
+if (import.meta.main) {
+  main().catch((err) => {
+    console.error("ompimpa error:", err);
+    process.exit(1);
+  });
 }

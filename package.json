@@ -7,7 +7,7 @@
   },
   "type": "module",
   "scripts": {
-    "test": "bun test",
+    "test": "bun test test/",
     "doctor": "bun run src/cli.ts doctor",
     "init": "bun run src/cli.ts init",
     "verify": "bun run src/cli.ts verify"
