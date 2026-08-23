@@ -148,9 +148,10 @@ async function handleInit(flags: string[]) {
     "_ompimpa/adr",
     "_ompimpa/status",
     "_ompimpa/ideation",
+    "_ompimpa/balairung",
+    "_ompimpa/ui",
     "_ompimpa/solutions",
   ];
-
   for (const dir of ompimpaDirs) {
     await fs.mkdir(path.join(targetDir, dir), { recursive: true });
   }
@@ -194,8 +195,12 @@ enable_atdd = true               # Enforce Red-Phase ATDD before code implementa
 quality_score_floor = 90         # Minimum test quality scorecard threshold (0-100)
 warnings_as_errors = true        # Enforce mix compile --warnings-as-errors
 max_dev_retries = 3              # Circuit breaker: escalate to human after 3 failed test iterations
-auto_macro_review_in_dev = true  # Run full 4-track Macro-Review at the end of story execution
+auto_macro_review_in_dev = true  # Run full 6-subagent parallel Macro-Review at the end of story execution
 auto_triage_and_fix = true       # Automatically triage P0/P1 findings and remediate before final commit
+
+[quality.review]
+parallel_reviewers = 6           # Panel of 6 parallel subagents: IronLaw, Security, QA/Test, Compiler, Ecto/Ash, LiveView/Oban
+max_triage_fix_cycles = 2        # Maximum automated remediation cycles before human escalation
 
 [resources]
 max_concurrency = 2              # Maximum parallel subagents running compilation/tests (prevents RAM/CPU exhaustion)
@@ -203,12 +208,14 @@ use_git_worktrees = true         # Execute parallel tasks in isolated Git Worktr
 shared_lsp_server = true         # Use a single shared LSP instance across subagents
 
 [models]
+balairung = "slow"              # Dewan Tokoh Balairung (3-Round Deliberation & Dialectics)
 ideate = "slow"                  # Rohana Kudus & Tan Malaka (Deep TRIZ & First Principles reasoning)
 prd = "plan"                     # H. Agus Salim (Master PRD & Architecture Planning)
 adr = "plan"                     # H. Agus Salim (Architecture Decision Records)
-ui = "default"                   # Marah Rusli (HEEx & Tailwind CSS Visual Design)
+ui = "design"                    # Marah Rusli (HEEx, Tailwind & Google Stitch Design)
 test = "default"                 # Tuanku Imam Bonjol (Red-Phase ATDD Scaffolding)
 dev = "default"                  # Backend Specialists (Ash, LiveView, Ecto, Oban, OTP)
+commit = "smol"                 # Semantic Commit Message Generator (feat/fix/test/refactor)
 ironlaw = "smol"                 # Hj. Rasuna Said (Fast & deterministic Iron Law verification)
 security = "slow"                # Bagindo Azizchan (Deep perimeter security & vulnerability audit)
 debug = "slow"                   # Adinegoro (4-track deep root cause investigation)

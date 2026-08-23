@@ -18,8 +18,10 @@ Mengeksekusi siklus implementasi kode otonom berbasis state persisten di disk (`
 ```
 [1. BACA STATE DISK]  ──► Membaca `_ompimpa/status/feature-status.yaml`, ambil Story dengan `status: ready-for-dev`.
                                 │
-[2. CEK TES MERAH]    ──► ⚡ Menjalankan Scoped Test: `mix test <path_test.exs>` (Bukan `mix test` global).
-                          Memastikan status awal tes ATDD adalah FAIL (Red Phase).
+[2. ATDD RED-PHASE]   ──► 🛡️ Otomatis memanggil `ompimpa-test` (Tuanku Imam Bonjol) jika berkas tes belum ada:
+                          • Membaca Kriteria Penerimaan Gherkin dari PRD.
+                          • Men-generate berkas tes penerimaan terfokus (`test/..._test.exs`).
+                          • Menjalankan Scoped Test `mix test <path_test.exs>` untuk memastikan status awal tes adalah FAIL (Red Phase).
                                 │
 [3. DISPATCH SPESIALIS]─► Memanggil subagent sesuai stack (`ompimpa-ash`, `ompimpa-liveview`, dll.)
                           di dalam Git Worktree terisolasi.
@@ -27,17 +29,25 @@ Mengeksekusi siklus implementasi kode otonom berbasis state persisten di disk (`
 [4. KODING S/D HIJAU] ──► Menulis kode produksi hingga seluruh asersi tes berstatus PASS.
                           (Dilindungi Circuit Breaker: maks 3x retry sebelum eskalasi ke manusia).
                                 │
-[5. REVIEW & TRIAGE]  ──► 🛡️ Menjalankan Macro-Review 4-Jalur (Hukum Besi + Keamanan + QA + Compiler):
+[5. REVIEW & TRIAGE]  ──► 🛡️ Menjalankan Panel Macro-Review 6-Subagent Paralel:
+                          • 1. `ompimpa-ironlaw` (Hj. Rasuna Said): Audit 26 Hukum Besi Semantik
+                          • 2. `ompimpa-security` (Bagindo Azizchan): Audit Keamanan & OWASP
+                          • 3. `ompimpa-test` (Tuanku Imam Bonjol): Scorecard Mutu Pengujian (≥ 90)
+                          • 4. `ompimpa-verify`: Verifikasi Strict Compiler & Warnings-as-Errors
+                          • 5. `ompimpa-ecto` / `ash`: Anti-N+1, Ecto Pinning `^`, Fail-Closed Policies
+                          • 6. `ompimpa-liveview` / `oban`: Memory Assigns Hygiene, Streams, Oban Idempotency
                           • Jika ada temuan P0/Blocker atau P1/Warning:
-                            1. Triage & filter temuan ke dalam tugas perbaikan terfokus.
+                            1. Triage & filter temuan ke tugas perbaikan terfokus.
                             2. Panggil spesialis untuk koding remediasi.
                             3. Jalankan RE-REVIEW pada diff perbaikan.
                           • Jika lolos / 0 Blocker: Lanjut ke commit.
                                 │
 [6. GIT COMMIT & SYNC]──► Jika lolos Re-Review:
-                          • Buat git commit (dilindungi OMP Guard Hook & Fast Pre-Commit Gate).
+                          • Agen Commit (`smol`) membaca staged diff dan men-generate Semantic Commit Message:
+                            Format: `<type>(<scope>): <short summary>` (misal: `feat(auth): implement passkey webauthn liveview`)
+                            Tipe: `feat`, `fix`, `test`, `refactor`, `perf`, `docs`, `chore`.
+                          • Eksekusi git commit (dilindungi OMP Guard Hook & Fast Pre-Commit Gate).
                           • Ubah status di `_ompimpa/status/feature-status.yaml` menjadi `status: done`.
-                                │
 [7. REKURSIVITAS]     ──► Jika memakai flag `--auto`: Hook OMP `session_stop` otomatis melanjutkan ke Story berikutnya.
                           Jika tanpa flag: berhenti dan melaporkan hasilnya kepada Anda.
 ```

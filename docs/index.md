@@ -30,6 +30,7 @@ Dokumentasi ini disusun menggunakan **Standar 4 Kuadran Diátaxis** untuk memisa
 
 ## 🛠️ 2. How-To Guides (Panduan Tugas Nyata)
 *Berorientasi pada penyelesaian masalah atau alur kerja praktis tertentu:*
+* **[How-To: Deliberasi Sidang Balairung](how-to/deliberate-in-balairung.md)** — Cara membuka sidang musyawarah multi-persona 3-ronde untuk keputusan arsitektur strategis.
 * **[How-To: Ideasi Musyawarah & Master PRD](how-to/ideate-and-draft-prd.md)** — Cara menjalankan musyawarah ideasi SCAMPER/TRIZ dan menyusun PRD.
 * **[How-To: Scaffolding Tes Merah (ATDD)](how-to/scaffold-atdd-tests.md)** — Cara merancang matriks risiko P1-P4 dan membuat tes penerimaan merah.
 * **[How-To: Loop Koding Otonom & Circuit Breaker](how-to/run-autonomous-dev-loop.md)** — Cara menjalankan `/ompimpa:dev` berbasis disk state.

@@ -37,9 +37,12 @@ enable_atdd = true             # Wajibkan tes merah Red-Phase sebelum koding
 quality_score_floor = 90       # Skor minimal kelulusan review (0-100)
 warnings_as_errors = true      # Enforce mix compile --warnings-as-errors
 max_dev_retries = 3            # Batas retry loop sebelum circuit breaker eskalasi ke manusia
-auto_macro_review_in_dev = true# Jalankan Macro-Review 4-jalur otomatis di sesi dev
+auto_macro_review_in_dev = true# Jalankan full Macro-Review 6-Subagent paralel di setiap akhir story
 auto_triage_and_fix = true     # Triage otomatis temuan Blocker & Warning sebelum commit
 
+[quality.review]
+parallel_reviewers = 6         # Panel 6 subagent paralel: IronLaw, Security, QA/Test, Compiler, Ecto/Ash, LiveView/Oban
+max_triage_fix_cycles = 2      # Batas siklus perbaikan otomatis sebelum eskalasi ke manusia
 # Target Non-Functional Requirements (NFR)
 [quality.nfr]
 target_p95_latency_ms = 50     # Target latensi respons p95 (ms) pada naskah PRD
@@ -64,12 +67,14 @@ shared_lsp_server = true       # Gunakan 1 instance LSP bersama untuk seluruh su
 # Pemetaan Model Subagent (Terkoneksi ke OMP Roles)
 # ==========================================
 [models]
+balairung = "slow"              # Dewan Tokoh Balairung (3-Round Deliberation & Dialectics)
 ideate = "slow"                # Rohana Kudus & Tan Malaka (Deep TRIZ & First Principles)
 prd = "plan"                   # H. Agus Salim (Master PRD & Architecture Planning)
 adr = "plan"                   # H. Agus Salim (Architecture Decision Records)
-ui = "default"                 # Marah Rusli (HEEx & Tailwind CSS Visual Design)
+ui = "design"                  # Marah Rusli (HEEx, Tailwind & Google Stitch Design)
 test = "default"               # Tuanku Imam Bonjol (Red-Phase ATDD Scaffolding)
 dev = "default"                # Backend Specialists (Ash, LiveView, Ecto, Oban, OTP)
+commit = "smol"               # Generator Semantic Commit Message (feat/fix/test/refactor)
 ironlaw = "smol"               # Hj. Rasuna Said (Fast & deterministic Iron Law verification)
 security = "slow"              # Bagindo Azizchan (Deep perimeter security & vulnerability audit)
 debug = "slow"                 # Adinegoro (4-track deep root cause investigation)

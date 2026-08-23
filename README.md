@@ -36,21 +36,26 @@ Plugin ini mengintegrasikan 3 pilar besar:
 ## 2. Siklus Hidup 6-Tahap Terpadu (Unified Lifecycle)
 
 ```
-[1. FASE PRODUK & IDEASI]   ───>  /ompimpa:ideate  (Musyawarah SCAMPER, Empathy & TRIZ)
-                            ───>  /ompimpa:prd     (Master PRD & Epics Spine)
-                            ───>  /ompimpa:adr     (MADR Architecture Decision Records)
-
-[2. FASE DESAIN & UI]       ───>  /ompimpa:ui      (HEEx, Tailwind CSS & CoreComponents)
-
-[3. FASE DESAIN PENGUJIAN]  ───>  /ompimpa:atdd    (Risk Matrix P1-P4 & Red-Phase Tests)
-
-[4. FASE EKSEKUSI OTONOM]   ───>  /ompimpa:dev     (Scoped Test + Micro-Review + State YAML)
-                            ───>  /ompimpa:course-correct (Pivot & Penyelarasan Rencana)
-
-[5. FASE REVIEW & PROOF]    ───>  /ompimpa:review  (Panel Review Paralel 4-Jalur)
-                            ───>  /ompimpa:verify  (Strict Compiler, Credo, Full Tests Loop)
-
-[6. FASE DOKUMENTASI & DOC] ───>  /ompimpa:doc     (Diátaxis User / Admin / Dev Guides)
+┌─── [SESI 1: DISCOVERY & DESAIN PRODUK] ───────────────────────────┐
+│ 0. Deliberasi Balairung───>  /ompimpa:balairung(3-Ronde Dialektika)│
+│ 1. Ideasi & Musyawarah  ───>  /ompimpa:ideate  (SCAMPER & TRIZ)   │
+│ 2. Spesifikasi & ADR    ───>  /ompimpa:prd     (Master PRD Spine) │
+│                               /ompimpa:adr     (MADR 3.0+ Record) │
+│ 3. Desain Visual & UX   ───>  /ompimpa:ui      (HEEx & Tailwind)  │
+└───────────────────────────────────────────────────────────────────┘
+                                  │
+                [SIMPAN STATE DISK & SESI BARU]
+                                  ▼
+┌─── [SESI 2: ENGINEERING & DEV OTONOM] ────────────────────────────┐
+│ 4. Eksekusi Koding      ───>  /ompimpa:dev     (Otomatis ATDD Merah│
+│                                                 -> Koding Hijau   │
+│                                                 -> Review 6-Jalur │
+│                                                 -> Auto-Commit)   │
+│    (Opsional Standalone)───>  /ompimpa:atdd    (Scaffold Tes Saja)│
+│ 5. Review & Verifikasi  ───>  /ompimpa:review  (Panel 6-Jalur)    │
+│                               /ompimpa:verify  (Full Tests Gate)  │
+│ 6. Dokumentasi Diátaxis ───>  /ompimpa:doc     (User/Admin/Dev)   │
+└───────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -122,9 +127,10 @@ shared_lsp_server = true         # Gunakan 1 instance LSP bersama untuk seluruh 
 ideate = "slow"                  # Rohana Kudus & Tan Malaka (Deep TRIZ & First Principles)
 prd = "plan"                     # H. Agus Salim (Master PRD & Architecture Planning)
 adr = "plan"                     # H. Agus Salim (Architecture Decision Records)
-ui = "default"                   # Marah Rusli (HEEx & Tailwind CSS Visual Design)
+ui = "design"                   # Marah Rusli (HEEx, Tailwind & Google Stitch Design)
 test = "default"                 # Tuanku Imam Bonjol (Red-Phase ATDD Scaffolding)
 dev = "default"                  # Backend Specialists (Ash, LiveView, Ecto, Oban, OTP)
+commit = "smol"                 # Generator Semantic Commit Message (feat/fix/test/refactor)
 ironlaw = "smol"                 # Hj. Rasuna Said (Fast & deterministic Iron Law verification)
 security = "slow"                # Bagindo Azizchan (Deep perimeter security & vulnerability audit)
 debug = "slow"                   # Adinegoro (4-track deep root cause investigation)
@@ -177,14 +183,14 @@ ompimpa doctor
 ```
 
 ### 3. Slash Commands di Sesi OMP
+* `/ompimpa:balairung [topik]` — Sidang musyawarah 3-ronde (Blind, Debat, Verdict) bersama dewan tokoh.
 * `/ompimpa:ideate [ide]` — Memulai musyawarah ideasi & resolusi TRIZ.
-* `/ompimpa:prd [judul]` — Menyusun Master PRD & Epics Spine di `_ompimpa/prd/`.
 * `/ompimpa:adr [keputusan]` — Mencatat keputusan arsitektur MADR 3.0+ di `_ompimpa/adr/`.
-* `/ompimpa:ui [komponen]` — Merancang HEEx, Tailwind, dan preview Chromium.
-* `/ompimpa:atdd [story]` — Membuat matriks risiko dan scaffold tes merah.
-* `/ompimpa:dev [--auto]` — Menjalankan loop koding otonom sampai tes hijau.
+* `/ompimpa:ui [komponen]` — Merancang HEEx, Tailwind, Google Stitch UI prompt, dan preview Chromium.
+* `/ompimpa:atdd [story]` — (Opsional) Merancang matriks risiko dan scaffold tes merah secara mandiri.
+* `/ompimpa:dev [--auto]` — Menjalankan loop dev otonom terintegrasi (Auto ATDD Merah ➔ Koding Hijau ➔ Review ➔ Commit).
 * `/ompimpa:course-correct` — Menyelaraskan kembali PRD & rencana saat terjadi pivot.
-* `/ompimpa:review` — Menjalankan panel review paralel 4-jalur.
+* `/ompimpa:review` — Menjalankan panel review paralel 6-subagent.
 * `/ompimpa:verify` — Memeriksa kompilator strict dan seluruh tes ExUnit.
 * `/ompimpa:doc <user|admin|dev>` — Menghasilkan panduan Diátaxis di `docs/`.
 * `/ompimpa:audit` — Audit kesehatan arsitektur, N+1, assigns, dan Hex security.

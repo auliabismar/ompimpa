@@ -1,9 +1,10 @@
 # How-To: Merancang Matriks Risiko dan Scaffolding Tes Merah (ATDD)
 
-Panduan ini menjelaskan cara membuat berkas pengujian penerimaan yang sengaja berstatus **MERAH (failing)** sebelum implementasi kode backend dimulai.
+Panduan ini menjelaskan cara merancang dan membuat berkas pengujian penerimaan yang sengaja berstatus **MERAH (failing)** sebelum implementasi kode backend dimulai.
+
+> 💡 **Integrasi Otomatis**: Tahap scaffolding tes merah ATDD ini secara default **sudah terintegrasi otomatis** di dalam loop `/ompimpa:dev`. Panduan ini digunakan jika Anda ingin merancang, meninjau, atau melakukan scaffolding matriks pengujian secara mandiri (*standalone*) sebelum masuk ke fase koding.
 
 ---
-
 ## 1. Menjalankan Scaffolder ATDD (`/ompimpa:atdd`)
 
 Panggil perintah ATDD dengan menunjuk nomor Slice atau Feature dari PRD:

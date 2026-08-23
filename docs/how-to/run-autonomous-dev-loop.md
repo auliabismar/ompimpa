@@ -14,16 +14,25 @@ Untuk mengerjakan satu slice berikutnya yang siap dikerjakan:
 
 ### Siklus Tertutup yang Berjalan:
 1. **Baca State di Disk**: Mengambil story dengan `status: ready-for-dev` dari `_ompimpa/status/feature-status.yaml`.
-2. **Verifikasi Tes Merah (Scoped Test)**:
-   Mengeksekusi pengujian terfokus hanya pada berkas tes slice aktif (misal: `mix test test/my_app_web/live/passkey_live_test.exs`) untuk memastikan tes berstatus FAIL secara valid.
+2. **Auto-ATDD Red-Phase Scaffolding & Verification**:
+   Jika berkas tes penerimaan untuk story ini belum ada, subagent `ompimpa-test` (Tuanku Imam Bonjol) otomatis dipanggil untuk:
+   - Membaca Kriteria Penerimaan Gherkin dari PRD (`_ompimpa/prd/`).
+   - Menulis berkas tes penerimaan terfokus (misal: `test/my_app_web/live/passkey_live_test.exs`).
+   - Menjalankan pengujian terfokus (*Scoped Test* `mix test <path_test.exs>`) untuk memastikan tes berstatus **FAIL (Red-Phase)** secara valid sebelum koding backend dimulai.
    > **Penting**: Hindari menjalankan `mix test` global tanpa argumen di fase ini agar loop koding tetap cepat (< 2 detik per iterasi).
-3. **Koding Spesialis**: Mengedit kode di Git Worktree terisolasi hingga seluruh asersi tes berstatus HIJAU.
+3. **Koding Spesialis**: Mengedit kode di Git Worktree terisolasi hingga seluruh asersi tes berstatus **HIJAU (PASS)**.
    - Jika terjadi kegagalan dengan stacktrace panjang, OMP Guard Hook (`hooks/ompimpa-guard.ts`) otomatis memangkas boilerplate trace internal untuk menghemat token konteks.
-4. **Macro-Review & Triage**: Menjalankan panel review 4-jalur:
+4. **Macro-Review 6-Subagent Paralel & Triage**:
+   Menjalankan audit paralel 6-jalur (IronLaw, Security, QA/Test, Compiler, Ecto/Ash, LiveView/Oban):
    - Jika ada temuan **P0 (Blocker)** atau **P1 (Warning)**: Sistem otomatis memprioritaskan perbaikan (*triage*), mengeksekusi kode remediasi, dan menjalankan **Re-Review**.
    - Temuan **P2 (Suggestion)** dicatat ke `_ompimpa/status/` tanpa memblokir penyelesaian story.
-5. **Git Commit & Status Sync**:
-   - Melakukan git commit yang diverifikasi secara instan oleh **Fast Pre-Commit Gate** (diff scan + strict incremental compile + format).
+5. **Semantic Git Commit & Status Sync (`smol` model)**:
+   - Agen Commit bertenaga model **`smol`** menganalisis staged diff dan menghasilkan **Semantic Commit Message** standar:
+     - `feat(<scope>): <summary>` (fitur baru)
+     - `fix(<scope>): <summary>` (perbaikan bug)
+     - `test(<scope>): <summary>` (penambahan/pembaruan tes ATDD)
+     - `refactor(<scope>): <summary>` (refactoring kode)
+   - Eksekusi commit diverifikasi secara instan oleh **Fast Pre-Commit Gate** (diff scan + strict incremental compile + format).
    - Mengubah status story di `_ompimpa/status/feature-status.yaml` menjadi `status: done`.
 
 ---

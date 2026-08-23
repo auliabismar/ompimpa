@@ -6,6 +6,8 @@ description: Merancang matriks risiko P1-P4 dan scaffolding tes merah Red-Phase 
 
 Jalankan subagent `ompimpa-test` (Tuanku Imam Bonjol) untuk menganalisis Kriteria Penerimaan dari PRD/Story dan menghasilkan berkas tes penerimaan ExUnit/LiveViewTest yang sengaja **MERAH (failing)** sebelum implementasi dimulai.
 
+> 💡 **Catatan**: Tahap ATDD ini sudah **terintegrasi otomatis** di dalam perintah `/ompimpa:dev`. Gunakan `/atdd` jika Anda ingin merancang, meninjau, atau melakukan scaffolding matriks risiko tes secara eksplisit sebelum masuk ke fase koding.
+
 ## Penggunaan
 ```bash
 /atdd [nomor Epic / Story / nama fitur]

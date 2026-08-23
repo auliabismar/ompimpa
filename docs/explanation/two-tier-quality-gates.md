@@ -46,7 +46,7 @@ OMP-IMPA memisahkan tanggung jawab pemeriksaan secara presisi pada setiap fase e
 [4. SELESAI 1 FITUR / PR]
        │
        ▼
-[TIER 3: MACRO-REVIEW & VERIFY] ──► 1. /ompimpa:review: Panel 4-Jalur (Rasuna Said, Azizchan, Imam Bonjol, QA)
+[TIER 3: MACRO-REVIEW & VERIFY] ──► 1. /ompimpa:review: Panel 6-Jalur (IronLaw, Security, QA/Test, Compiler, Ecto/Ash, LiveView/Oban)
                                    2. /ompimpa:verify: Full `mix test` + Credo Strict + Sobelow Security
 ```
 
@@ -82,7 +82,7 @@ OMP-IMPA memisahkan tanggung jawab pemeriksaan secara presisi pada setiap fase e
 * **Tempat**: Perintah eksplisit `/ompimpa:review` dan `/ompimpa:verify`.
 * **Waktu**: Di akhir implementasi fitur, sebelum merge branch, atau pada pipeline CI/CD.
 * **Tanggung Jawab**:
-  1. Audit semantik mendalam oleh panel 4-jalur (Hj. Rasuna Said, Bagindo Azizchan, Tuanku Imam Bonjol).
+  1. Audit semantik mendalam oleh panel 6-jalur (Hj. Rasuna Said, Bagindo Azizchan, Tuanku Imam Bonjol, Compiler, Ecto/Ash, LiveView/Oban).
   2. Eksekusi menyeluruh seluruh rangkaian tes proyek (`mix test`), static analysis Credo (`mix credo --strict`), dan security audit Sobelow (`mix sobelow --config --exit`).
 
 ---

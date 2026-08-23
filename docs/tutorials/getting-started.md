@@ -89,32 +89,41 @@ Buka sesi interaktif OMP di proyek Anda:
 omp
 ```
 
-Di dalam prompt OMP, jalankan alur berurutan berikut:
+Di dalam prompt OMP, jalankan alur 2 sesi bersih berikut:
 
-### 1. Musyawarah Ideasi
-```text
-/ompimpa:ideate "Fitur transfer saldo instan antar-pengguna dengan PIN keamanan"
-```
-*Rohana Kudus dan Tan Malaka akan membedah ide, menggali persona, dan melarutkan kontradiksi teknis di `_ompimpa/ideation/`.*
+#### **Sesi 1: Discovery & Desain Produk (Chat / Diskusi)**
+1. **Musyawarah Ideasi**:
+   ```text
+   /ompimpa:ideate "Fitur transfer saldo instan antar-pengguna dengan PIN keamanan"
+   ```
+   *Rohana Kudus dan Tan Malaka akan membedah ide, menggali persona, dan melarutkan kontradiksi teknis di `_ompimpa/ideation/`.*
 
-### 2. Kunci Spesifikasi Master PRD
-```text
-/ompimpa:prd "Transfer Saldo Instan"
-```
-*H. Agus Salim akan menyusun Master PRD lengkap dengan Epics & Slices Spine di `_ompimpa/prd/`.*
+2. **Kunci Spesifikasi Master PRD**:
+   ```text
+   /ompimpa:prd "Transfer Saldo Instan"
+   ```
+   *H. Agus Salim akan menyusun Master PRD lengkap dengan Epics & Slices Spine di `_ompimpa/prd/`.*
 
-### 3. Buat Tes Merah (Red-Phase ATDD)
-```text
-/ompimpa:atdd "Slice 1.1"
-```
-*Tuanku Imam Bonjol akan menganalisis acceptance criteria dan membuat tes ExUnit yang berstatus MERAH.*
+3. **Desain Komponen UI & Layout** (jika ada tampilan):
+   ```text
+   /ompimpa:ui "Form Transfer Saldo"
+   ```
+   *(Tutup sesi chat OMP untuk menghemat jendela konteks / token).*
 
-### 4. Eksekusi Koding Otonom (Closed-Loop)
-```text
-/ompimpa:dev
-```
-*Spesialis backend menulis kode di isolated git worktree hingga tes merah berubah menjadi HIJAU, lalu otomatis menjalankan Micro/Macro-Review, triage, dan commit.*
+---
 
+#### **Sesi 2: Engineering & Eksekusi Otonom (Fresh Session)**
+Buka sesi OMP baru (`omp`), lalu langsung jalankan:
+
+4. **Eksekusi Dev Otonom Terpadu (Closed-Loop)**:
+   ```text
+   /ompimpa:dev --auto
+   ```
+   *Alur ini otomatis melakukan:*
+   - **Auto ATDD Red-Phase**: Tuanku Imam Bonjol membuat tes penerimaan ExUnit yang berstatus MERAH untuk story aktif.
+   - **Koding Hijau**: Spesialis backend menulis kode di isolated git worktree hingga tes merah berubah menjadi HIJAU.
+   - **Macro-Review & Commit**: Review 4-jalur otomatis, triage perbaikan, dan commit per story.
+   *(Catatan: Anda juga dapat menjalankan `/ompimpa:atdd` secara terpisah jika hanya ingin membuat scaffold tes).*
 ### 5. Review & Verifikasi Kualitas
 ```text
 /ompimpa:review

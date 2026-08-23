@@ -8,12 +8,13 @@ Dokumen referensi (*Information-Oriented*) ini memuat daftar lengkap perintah sl
 
 | Perintah | Deskripsi | Subagent Penanggung Jawab | Contoh Penggunaan |
 | :--- | :--- | :--- | :--- |
+| **`/ompimpa:balairung`** | Sidang musyawarah 3-ronde (Blind, Debat, Verdict) | Dewan Tokoh OMP-IMPA | `/ompimpa:balairung [topik]` |
 | **`/ompimpa:ideate`** | Musyawarah ideasi & resolusi kontradiksi TRIZ | `ompimpa-ideate` & `ompimpa-triz` | `/ompimpa:ideate [ide]` |
 | **`/ompimpa:prd`** | Menyusun Master PRD & Epics Spine | `ompimpa-prd` | `/ompimpa:prd [judul]` |
 | **`/ompimpa:adr`** | Mencatat keputusan arsitektur MADR 3.0+ | `ompimpa-prd` | `/ompimpa:adr [judul]` |
-| **`/ompimpa:ui`** | Merancang HEEx, Tailwind, & CoreComponents | `ompimpa-ui` | `/ompimpa:ui [nama-komponen]` |
-| **`/ompimpa:atdd`** | Merancang matriks risiko & tes merah Red-Phase | `ompimpa-test` | `/ompimpa:atdd [story]` |
-| **`/ompimpa:dev`** | Loop koding otonom berbasis disk state | Spesialis Backend | `/ompimpa:dev [--auto]` |
+| **`/ompimpa:ui`** | Merancang HEEx, Tailwind, & Google Stitch UI prompt | `ompimpa-ui` | `/ompimpa:ui [nama-komponen]` |
+| **`/ompimpa:atdd`** | (Opsional) Scaffolding matriks risiko & tes merah mandiri | `ompimpa-test` | `/ompimpa:atdd [story]` |
+| **`/ompimpa:dev`** | Loop dev otonom terintegrasi (Auto ATDD ➔ Koding ➔ Review ➔ Commit) | Spesialis Backend | `/ompimpa:dev [--auto]` |
 | **`/ompimpa:course-correct`** | Kalibrasi ulang PRD & rencana saat pivot | `ompimpa-prd` & `ompimpa-triz` | `/ompimpa:course-correct [kendala]` |
 | **`/ompimpa:review`** | Panel review paralel 4-jalur | `ompimpa-ironlaw` & Security | `/ompimpa:review [--staged]` |
 | **`/ompimpa:verify`** | Strict compiler & ExUnit test suite | `ompimpa-verify` | `/ompimpa:verify` |
