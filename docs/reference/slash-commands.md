@@ -8,7 +8,7 @@ Dokumen referensi (*Information-Oriented*) ini memuat daftar lengkap perintah sl
 
 | Perintah | Deskripsi | Subagent Penanggung Jawab | Contoh Penggunaan |
 | :--- | :--- | :--- | :--- |
-| **`/ompimpa:balairung`** | Sidang musyawarah 3-ronde (Blind, Debat, Verdict) | Dewan Tokoh OMP-IMPA | `/ompimpa:balairung [topik]` |
+| **`/ompimpa:balairung`** | Sidang musyawarah interaktif (Party Mode) bersama dewan tokoh | Dewan Tokoh OMP-IMPA | `/ompimpa:balairung [topik]` / `--close` |
 | **`/ompimpa:ideate`** | Musyawarah ideasi & resolusi kontradiksi TRIZ | `ompimpa-ideate` & `ompimpa-triz` | `/ompimpa:ideate [ide]` |
 | **`/ompimpa:prd`** | Menyusun Master PRD & Epics Spine | `ompimpa-prd` | `/ompimpa:prd [judul]` |
 | **`/ompimpa:adr`** | Mencatat keputusan arsitektur MADR 3.0+ | `ompimpa-prd` | `/ompimpa:adr [judul]` |

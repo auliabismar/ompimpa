@@ -43,31 +43,75 @@ Setiap klaim yang diajukan oleh anggota dewan pada Ronde 1 dan Ronde 2 **wajib**
 
 ---
 
-## 3. Tata Kelola Protokol 3 Ronde
+## 3. Protokol Deliberasi Interaktif (Party-Mode Deliberation State Machine)
 
-### **Ronde 1: Pandangan Independen (Blind Opening)**
-1. Koordinator menyajikan topik keputusan dan batasan masalah kepada para anggota dewan yang terpilih.
-2. Setiap agen menyusun analisis independen tanpa melihat jawaban rekannya.
-3. Struktur respon tiap agen:
-   - *Pernyataan Posisi Awal* (Mendukung / Menolak / Opsi Alternatif).
-   - *3 Argumen Inti* (dengan pelabelan `[FACT]`, `[INFERENCE]`, `[ASSUMPTION]`).
-   - *Blind Spot / Hal yang Dikhawatirkan* (`[UNKNOWN]`).
+Sidang Balairung Sari beroperasi sebagai **Musyawarah Meja Bundar Multi-Turn Interaktif** (mengadopsi arsitektur *BMAD Party Mode*). Pengguna bertindak sebagai **Ketua Sidang / Pimpinan Majelis** yang memegang palu sidang dan berhak mengarahkan, menguji, maupun menengahi jalannya debat.
 
-### **Ronde 2: Debat Silang & Saling Uji (Adversarial Cross-Examination)**
-1. Seluruh analisis Ronde 1 dibuka ke forum.
-2. Setiap agen membaca pandangan rekan bicaranya dan memilih minimal 1 argumen lawan untuk diuji atau disanggah.
-3. Fokus pengujian:
-   - Menguji kelemahan asumsi (`[ASSUMPTION]`).
-   - Menguji skenario kegagalan ekstrem (*Stress Test / Worst-Case Scenario*).
-   - Menghitung konsekuensi trade-off jangka panjang (6-12 bulan ke depan).
+```
+[PEMBUKAAN SIDANG: /balairung "topik"]
+               │
+               ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│ 🏛️ TAHAP 1: PEMBUKAAN SIDANG & POSISI AWAL (Blind Opening & Open Floor) │
+│ • Koordinator mendudukkan anggota dewan yang relevan.                 │
+│ • Setiap tokoh menyampaikan posisi awal ringkas + label bukti wajib.   │
+│ • Koordinator WAJIB YIELD TURN ke Pengguna (Ketua Sidang).             │
+└───────────────────────────────┬────────────────────────────────────────┘
+                                │
+                                ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│ ⚔️ TAHAP 2: DEBAT SILANG & DIALOG MULTI-TURN (Active Deliberation)      │
+│ • Pengguna menyanggah asumsi, bertanya ke @tokoh, atau beri kendala.  │
+│ • Tokoh merespons input pengguna & saling menguji argumen rekan.       │
+│ • ⛔ HARD RULE: STATUS SIDANG TERBUKA. DILARANG MENULIS FILE KE DISK.   │
+└───────────────────────────────┬────────────────────────────────────────┘
+                                │
+             [Pengguna Memerintahkan Tutup Sidang:
+            /balairung --close / "Tutup Sidang"]
+                                │
+                                ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│ 📜 TAHAP 3: PENUTUPAN SIDANG & RISALAH MUFAKAT (The Verdict & Doc)     │
+│ • Koordinator mengetuk palu sidang dan merangkum seluruh hasil debat. │
+│ • Menulis dokumen permanen ke _ompimpa/balairung/BALAIRUNG-*.md.       │
+│ • Menawarkan 1 langkah konkret berikutnya (ADR / PRD).                 │
+└────────────────────────────────────────────────────────────────────────┘
+```
 
-### **Ronde 3: Sintesis Mufakat & Keputusan (The Verdict)**
-Koordinator merangkum hasil perdebatan ke dalam dokumen keputusan bulat:
-1. **Rekomendasi Utama**: Keputusan arsitektur/produk yang disepakati.
-2. **Konsensus vs Split Tally**: Status kesepakatan (Mufakat Bulat, Mayoritas 3-1, atau Terbelah).
-3. **Dissenting Opinions (Pendapat Minoritas)**: Pandangan persona yang berbeda dicatat secara utuh dan terhormat tanpa dihapus.
-4. **Kill Criteria (Kondisi Pembatalan)**: Parameter kuantitatif atau kualitatif yang jika terbukti salah di masa depan, keputusan ini harus dibatalkan/di-pivot.
-5. **Langkah Konkret Berikutnya (*Next Concrete Action*)**: Tindakan 1 langkah berikutnya (misal: menyusun ADR di `/ompimpa:adr` atau PRD di `/ompimpa:prd`).
+---
+
+### **Aturan Siklus Turn-by-Turn**
+
+#### **Turn 1: Pembukaan Sidang (Open Floor)**
+1. Koordinator memetakan topik dan mendudukkan 3–4 tokoh (atau sesuai flag `--full`, `--triad`, `--members`).
+2. Masing-masing tokoh memaparkan pandangan ringkas (2–3 poin padat):
+   - *Pernyataan Sikap* (Mendukung / Menolak / Alternatif).
+   - *Argumen Kunci* (berlabel `[FACT]`, `[INFERENCE]`, `[ASSUMPTION]`).
+   - *Kekhawatiran / Blind Spot* (`[UNKNOWN]`).
+3. **Wajib Yield Turn**: Di akhir turn pertama, koordinator menyimpulkan titik gesekan utama antar-tokoh dan secara eksplisit menyerahkan giliran bicara kepada Pengguna sebagai Ketua Sidang:
+   > *"Sidang Balairung Sari resmi dibuka. Terdapat benturan pandangan antara [Tokoh A] dan [Tokoh B] mengenai [Asumsi/Topik]. Bagaimana pandangan atau arahan Ketua Sidang?"*
+
+#### **Turn 2..N: Musyawarah Terbuka (Active Deliberation)**
+1. Pengguna dapat memberikan tanggapan bebas di chat:
+   - Meminta pendalaman dari persona tertentu: `@tan-malaka`, `@bung-hatta`, `@azizchan`.
+   - Mengoreksi data/asumsi faktual: *"Asumsi memori keliru, kita punya RAM 16GB."*
+   - Mengarahkan kompromi atau prioritas bisnis: *"Prioritaskan time-to-market 2 pekan."*
+2. Tokoh-tokoh yang dipanggil atau relevan langsung merespons tanggapan pengguna dan saling berargumen (*cross-examination*).
+3. **Larangan Keras (*Hard Invariant*)**: Selama tahap ini, sidang berstatus `[STATUS: SIDANG TERBUKA]`. Agen **DILARANG KERAS** membuat file risalah markdown di disk sampai ada instruksi tutup sidang.
+
+#### **Turn Final: Penutupan Sidang & Dokumentasi (Explicit Close)**
+Sidang **hanya dicatat ke berkas dokumen** jika pengguna memberikan perintah penutupan secara eksplisit:
+- Command: `/balairung --close` atau `/balairung close`
+- Frasa natural: *"Tutup sidang"*, *"Akhiri balairung"*, *"Ambil mufakat sekarang"*, *"Kunci keputusan dan buat risalahnya"*.
+
+Ketika perintah tutup diterima, Koordinator Balairung:
+1. Merumuskan **Rekomendasi Mufakat** berdasarkan seluruh alur diskusi (termasuk suara dan arahan Ketua Sidang).
+2. Menyusun **Status Kesepakatan (Consensus vs Split Tally)**.
+3. Menjaga dan mencatat **Dissenting Opinions (Pendapat Minoritas)** secara utuh.
+4. Menetapkan **Kill Criteria (Batas Pembatalan Keputusan)**.
+5. Menulis seluruh risalah ke berkas permanen:
+   📁 `_ompimpa/balairung/BALAIRUNG-[YYYYMMDD-HHMM]-[slug].md`
+6. Memberikan 1 rekomendasi langkah tindak lanjut (misal: menyusun `/ompimpa:adr` atau `/ompimpa:prd`).
 
 ---
 

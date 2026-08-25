@@ -1,12 +1,16 @@
 ---
-description: Memulai musyawarah meja bundar (3-Ronde Deliberasi: Blind Analysis, Cross-Debat, Verdict) bersama Dewan Tokoh OMP-IMPA
+description: Membuka sidang musyawarah meja bundar interaktif (Party Mode) bersama Dewan Tokoh OMP-IMPA
 ---
 
 # Command: /balairung
 
-Membuka sidang permusyawaratan **Balairung Sari** untuk mengambil keputusan arsitektur, strategi produk, resolusi trade-off, atau analisis risiko kritis menggunakan protokol deliberasi multi-persona 3-ronde.
+Membuka sidang permusyawaratan **Balairung Sari** untuk mengambil keputusan arsitektur, strategi produk, resolusi trade-off, atau analisis risiko kritis menggunakan protokol musyawarah meja bundar interaktif (*Party Mode*).
+
+Dalam sidang ini, Anda bertindak sebagai **Ketua Sidang / Pimpinan Majelis** yang memandu jalannya musyawarah, menanggapi tokoh, menyanggah asumsi, dan mengetuk palu penutupan sidang.
 
 ## Penggunaan
+
+### 1. Membuka Sidang Balairung
 
 ```bash
 # 1. Mode Default: Auto-Pick pintar anggota dewan berdasarkan topik
@@ -27,36 +31,60 @@ Membuka sidang permusyawaratan **Balairung Sari** untuk mengambil keputusan arsi
 /balairung --duo --members rohana-kudus,tan-malaka "Optimistic UI rendering vs Server Authority Confirmation"
 ```
 
-## Protokol 3 Ronde Wajib (*The 3-Round Protocol*)
+### 2. Berdiskusi dalam Sidang Terbuka (Multi-Turn Chat)
 
-Sidang Balairung dipandu oleh protokol ketat yang menjamin kedalaman nalar dan mencegah *groupthink*:
+Setelah sidang dibuka, Anda dapat berdiskusi bebas dengan para anggota dewan:
+* Panggil tokoh tertentu: `@tan-malaka apa pertimbangan Madilog-mu jika memori dibatasi 512MB?`
+* Koreksi fakta/asumsi: `Asumsi Bung Hatta keliru, kita memakai PostgreSQL 16 dengan partisi.`
+* Arahkan kompromi: `@azizchan dan @marah-rusli tolong cari titik temu antara UX 1-klik dan otentikasi aman.`
+
+> ⛔ **Status Sidang Terbuka**: Selama sesi musyawarah berlangsung, sistem **TIDAK** menulis file risalah apa pun ke disk. Semua diskusi bergulir interaktif di layar chat.
+
+### 3. Menutup Sidang & Merekam Risalah Mufakat
+
+Sidang resmi ditutup dan dicatat ke dokumen HANYA ketika Anda memberikan perintah penutupan:
+
+```bash
+# Menggunakan flag resmi
+/balairung --close
+
+# Atau menggunakan perintah natural di chat
+"Tutup sidang balairung"
+"Ambil mufakat sekarang dan catat risalahnya"
+"Kunci keputusan ini"
+```
+
+---
+
+## Protokol Alur Deliberasi Interaktif (*Party-Mode Flow*)
 
 ```
-[PERTANYAAN / DILEMA STRATEGIS]
+[PEMBUKAAN SIDANG: /balairung "topik"]
                │
                ▼
 ┌────────────────────────────────────────────────────────────────────────┐
-│ 🗳️ RONDE 1: PANDANGAN INDEPENDEN (Blind Opening Analysis)              │
-│ • Setiap persona menganalisis masalah secara mandiri (terisolasi).     │
-│ • Agen DILARANG membaca pandangan persona lain (anti-sycophancy).      │
-│ • Wajib melabeli argumen: [FACT], [INFERENCE], [ASSUMPTION], [UNKNOWN].│
+│ 🗳️ TAHAP 1: PEMBUKAAN & POSISI AWAL (Open Floor)                       │
+│ • Anggota dewan menyampaikan sikap awal singkat + label bukti wajib:   │
+│   [FACT], [INFERENCE], [ASSUMPTION], [UNKNOWN].                        │
+│ • Koordinator menyerahkan giliran (Yield Turn) ke Ketua Sidang.        │
 └───────────────────────────────┬────────────────────────────────────────┘
                                 │
                                 ▼
 ┌────────────────────────────────────────────────────────────────────────┐
-│ ⚔️ RONDE 2: DEBAT SILANG & DIALEKTIKA (Adversarial Cross-Examination)  │
-│ • Seluruh analisis Ronde 1 dibuka untuk semua persona yang hadir.      │
-│ • Saling menguji asumsi, mencari kelemahan argumen rekan, dan bedah   │
-│   skenario kegagalan ekstrem (Worst-Case Analysis).                    │
+│ ⚔️ TAHAP 2: MUSYAWARAH & DEBAT SILANG INTERAKTIF (Active Discussion)   │
+│ • Pengguna menguji asumsi, menyanggah argumen, atau menanyai tokoh.    │
+│ • Tokoh-tokoh saling berdebat dan menyesuaikan sikap secara dinamis.   │
+│ • ⛔ File risalah BELUM dibuat (Sidang Berstatus Terbuka).              │
 └───────────────────────────────┬────────────────────────────────────────┘
+                                │
+             [Pengguna Memberi Perintah: /balairung --close]
                                 │
                                 ▼
 ┌────────────────────────────────────────────────────────────────────────┐
-│ 📜 RONDE 3: SINTESIS MUFAKAT & VERDICT (Consensus & Preserved Dissent) │
-│ • Merumuskan Rekomendasi Inti / Mufakat Akhir.                         │
-│ • Mencatat Dissenting Opinions (suara minoritas yang tidak setuju).   │
-│ • Menetapkan Kill Criteria (kondisi di mana keputusan harus batal).   │
-│ • Menentukan 1 Langkah Konkret Selanjutnya (Next Action).              │
+│ 📜 TAHAP 3: KETUK PALU MUFAKAT & DOKUMENTASI (The Verdict)             │
+│ • Koordinator merangkum hasil mufakat, suara berbeda, & kill criteria. │
+│ • Menyimpan berkas risalah ke _ompimpa/balairung/BALAIRUNG-*.md.       │
+│ • Menawarkan tautan tindak lanjut (/ompimpa:adr atau /ompimpa:prd).    │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -70,7 +98,7 @@ Jika Anda tidak menyertakan flag `--triad` atau `--members`, sistem otomatis mem
 
 ## Luaran (*Deliverables*)
 
-Hasil mufakat disimpan secara persisten di:
+Hasil mufakat disimpan secara persisten **hanya saat sidang ditutup** di:
 📁 **`_ompimpa/balairung/BALAIRUNG-[YYYYMMDD-HHMM]-[slug].md`**
 
 > 💡 **Prinsip Referensi Bebas**: Berkas ini tidak memicu koding langsung, tetapi menjadi dokumen rujukan resmi yang dapat dikutip kapan saja oleh `/ompimpa:prd`, `/ompimpa:adr`, `/ompimpa:ui`, atau `/ompimpa:dev`.

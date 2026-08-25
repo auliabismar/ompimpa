@@ -42,35 +42,47 @@ Untuk musyawarah terarah pada ranah spesifik:
 
 ---
 
-## 2. Apa yang Terjadi Selama 3 Ronde?
+## 2. Alur Sidang: Dari Musyawarah Interaktif hingga Ketuk Palu
 
-Protokol Balairung menjamin kedalaman analisis dan mencegah persetujuan semu (*anti-sycophancy*):
+Sidang Balairung Sari mengadopsi mekanisme **Party Mode Multi-Turn**. Anda memegang kendali penuh sebagai **Ketua Sidang / Pimpinan Majelis**:
 
-1. **Ronde 1: Pandangan Independen (Blind Opening)**:
-   Setiap persona menulis analisis mandiri tanpa saling melihat. Setiap argumen diberi label kepastian bukti: `[FACT]`, `[INFERENCE]`, `[ASSUMPTION]`, dan `[UNKNOWN]`.
-2. **Ronde 2: Debat Silang & Dialektika (Cross-Examination)**:
-   Seluruh analisis dibuka ke forum. Persona saling menantang asumsi, mengekspos blind spot, dan menguji skenario kegagalan ekstrem (*worst-case scenario*).
-3. **Ronde 3: Sintesis Mufakat & Keputusan (The Verdict)**:
-   Merumuskan rekomendasi mufakat, mencatat *Dissenting Opinions* (suara minoritas yang tidak setuju), menetapkan *Kill Criteria*, dan menentukan langkah konkret berikutnya.
+### Tahap 1: Pembukaan & Posisi Awal (Open Floor)
+* Setelah Anda menjalankan `/ompimpa:balairung`, masing-masing tokoh memaparkan posisi awal secara ringkas.
+* Setiap argumen diberi label kepastian bukti: `[FACT]`, `[INFERENCE]`, `[ASSUMPTION]`, dan `[UNKNOWN]`.
+* Koordinator Balairung menyimpulkan titik gesekan utama dan **menyerahkan giliran (*Yield Turn*)** kepada Anda untuk memulai pembahasan.
+
+### Tahap 2: Diskusi & Debat Silang Terbuka (Active Deliberation)
+* Anda berdiskusi langsung dengan dewan di dalam layar chat:
+  * **Menantang asumsi**: *"Asumsi Bung Hatta tentang load database tidak relevan karena kita memakai caching."*
+  * **Meminta elaborasi persona**: *"@tan-malaka bagaimana jika kita terapkan prinsip pemisahan waktu?"*
+  * **Mengarahkan konsensus**: *"Bagaimana jika kita gunakan Ash untuk core resource, tapi tetap pakai Ecto query custom untuk reporting?"*
+* Tokoh-tokoh akan menanggapi arahan Anda sekaligus saling menguji argumen rekan dewan (*cross-examination*).
+* ⛔ **Aturan Ketat**: Berkas risalah **BELUM** ditulis ke disk selama sidang berstatus terbuka.
+
+### Tahap 3: Penutupan Sidang & Dokumentasi Resmi (The Verdict)
+* Ketika Anda merasa musyawarah telah matang, ketuk palu penutupan sidang dengan salah satu perintah:
+  ```bash
+  /ompimpa:balairung --close
+  # Atau ketik di chat: "Tutup sidang balairung dan catat mufakatnya"
+  ```
+* Koordinator Balairung akan merangkum seluruh hasil sidang dan mencatatnya ke dalam dokumen risalah permanen.
 
 ---
 
 ## 3. Struktur Berkas Risalah Balairung
 
-Hasil sidang disimpan secara permanen di:
+Dokumen risalah dibuat **hanya saat sidang resmi ditutup**, disimpan di:
 📁 **`_ompimpa/balairung/BALAIRUNG-[YYYYMMDD-HHMM]-[slug].md`**
 
 Berkas ini memuat:
 - **Ringkasan Topik & Batasan Masalah**.
-- **Log Ronde 1 (Blind Analysis)** dari setiap persona yang hadir.
-- **Log Ronde 2 (Debat Silang & Dialektika)**.
+- **Posisi Awal & Intervensi Ketua Sidang**.
+- **Dialektika & Debat Silang Utama**.
 - **Verdict Akhir**:
   - Rekomendasi Mufakat.
-  - Suara Berbeda (*Dissenting Opinions*).
+  - Suara Minoritas (*Dissenting Opinions*).
   - Batas Pembatalan Keputusan (*Kill Criteria*).
   - Rekomendasi Tindak Lanjut (misal: menyusun `/ompimpa:adr` atau `/ompimpa:prd`).
-
----
 
 ## 4. Memanfaatkan Hasil Balairung di Workflow Lain
 
