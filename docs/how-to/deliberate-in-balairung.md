@@ -13,7 +13,7 @@ Ketik topik keputusan yang ingin dibahas:
 /ompimpa:balairung "Apakah kita perlu migrasi dari Vanilla Ecto ke Ash Framework untuk fitur multi-tenant?"
 ```
 
-*Sistem otomatis memilih persona yang paling relevan (misal: Syekh Ahmad Khatib, Bung Hatta, Tan Malaka, dan Bagindo Azizchan).*
+*Sistem otomatis memilih persona yang paling relevan (misal: Mr. Assaat, Bung Hatta, Tan Malaka, dan Bagindo Azizchan).*
 
 ---
 
@@ -30,7 +30,7 @@ Untuk keputusan fundamental berskala besar yang menentukan arah arsitektur selur
 Untuk musyawarah terarah pada ranah spesifik:
 
 ```bash
-# Triad Arsitektur (Tan Malaka + Bung Hatta/Ahmad Khatib + Sutan Sjahrir)
+# Triad Arsitektur (Tan Malaka + Bung Hatta/Mr. Assaat + Sutan Sjahrir)
 /ompimpa:balairung --triad arsitektur "Pilih Redis PubSub atau Phoenix.PubSub native BEAM?"
 
 # Triad Risiko & Keamanan (Hj. Rasuna Said + Bagindo Azizchan + Tuanku Imam Bonjol)

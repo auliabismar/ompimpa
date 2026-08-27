@@ -69,7 +69,7 @@ Plugin ini mengintegrasikan 3 pilar besar:
 | `ompimpa-prd.md` | [**H. Agus Salim**](https://id.wikipedia.org/wiki/Agus_Salim) | Master PRD, Epics & Stories Spine, serta naskah ADR berstandar MADR. |
 | `ompimpa-ui.md` | [**Marah Rusli**](https://id.wikipedia.org/wiki/Marah_Roesli) | Komponen HEEx, styling Tailwind CSS responsif, dan CoreComponents. |
 | `ompimpa-test.md` | [**Tuanku Imam Bonjol**](https://id.wikipedia.org/wiki/Tuanku_Imam_Bonjol) | Matriks risiko P1-P4, Red-Phase ATDD, dan Scorecard Mutu $\ge 90$. |
-| `ompimpa-ash.md` | [**Syekh Ahmad Khatib**](https://id.wikipedia.org/wiki/Ahmad_Khatib_Al-Minangkabawi) | Resources Ash deklaratif, Actions, Kebijakan *Fail-Closed*, dan Query. |
+| `ompimpa-ash.md` | [**Mr. Assaat**](https://id.wikipedia.org/wiki/Assaat) | Resources Ash deklaratif, Actions, Kebijakan *Fail-Closed*, dan Query. |
 | `ompimpa-liveview.md`| [**Tuanku Tambusai**](https://id.wikipedia.org/wiki/Tuanku_Tambusai) | Lifecycle socket, optimasi memori Streams, JS Hooks, dan PubSub. |
 | `ompimpa-ecto.md` | [**Mohammad Hatta**](https://id.wikipedia.org/wiki/Mohammad_Hatta) | Skema database, changeset, constraint, migrasi aman, dan `Ecto.Multi`. |
 | `ompimpa-oban.md` | [**Djamaluddin Tamin**](https://id.wikipedia.org/wiki/Djamaluddin_Tamin) | Background worker idempotent, antrean unik, dan penjadwalan cron. |

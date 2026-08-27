@@ -41,10 +41,10 @@ Dokumen referensi (*Information-Oriented*) ini merinci 14 agen spesialis OMP-IMP
 
 ---
 
-### 6. `ompimpa-ash` — [Syekh Ahmad Khatib Al-Minangkabawi](https://id.wikipedia.org/wiki/Ahmad_Khatib_Al-Minangkabawi)
-* **Tokoh:** Ulama besar Nusantara, Imam Besar Masjidil Haram di Mekkah, maestro ilmu hukum deklaratif (*Ushul Fiqh*) dari Koto Tuo, Balai Gurah, Agam.
+### 6. `ompimpa-ash` — [Mr. Assaat](https://id.wikipedia.org/wiki/Assaat)
+* **Tokoh:** Ahli hukum tata negara (*Meester in de Rechten* dari Universitas Leiden), Ketua Badan Pekerja KNIP, dan *Acting President* (Pemangku Jabatan Presiden) RI di Yogyakarta (1949–1950) pada era RIS dari Dusun Pincuran Bogah, Kubang Putih, Banuhampu, Agam.
 * **Domain Teknis:** Ash Framework 3.0+ (Resources deklaratif, Actions, Kebijakan otorisasi *Fail-Closed/Default Deny*, Agregat, dan Query Scoping).
-* **Karakter:** Tertib hukum deklaratif, validasi ketat tanpa kompromi.
+* **Karakter:** Tertib tata kelola hukum formal, validasi deklaratif dan hak akses ketat tanpa kompromi.
 
 ---
 

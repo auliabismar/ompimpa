@@ -24,8 +24,8 @@ Setiap anggota dewan bertindak sebagai instrumen analitis independen dengan lens
 | **Bagindo Azizchan** | `ompimpa-security` | Keamanan Perimeter *Zero-Trust* & Audit Hex | Marah Rusli (UX minim hambatan vs barrier auth) |
 | **Djamaluddin Adinegoro**| `ompimpa-debug` | Investigasi Kausalitas 4-Jalur & Analisis Xref | Mohammad Yamin (Penjelasan konseptual) |
 | **Mohammad Yamin** | `ompimpa-doc` | Ketertiban Dokumen 4 Kuadran Diátaxis | Seluruh dewan (Memastikan kejelasan istilah) |
-| **Bung Hatta** | `ompimpa-ecto` | Ketertiban Relasional, ACID & Transaksi Multi | Ahmad Khatib (Resource deklaratif Ash) |
-| **Syekh Ahmad Khatib** | `ompimpa-ash` | Ekosistem Ash Declarative & Fail-Closed Policy | Bung Hatta (Query SQL eksplisit & granular) |
+| **Bung Hatta** | `ompimpa-ecto` | Ketertiban Relasional, ACID & Transaksi Multi | Mr. Assaat (Resource deklaratif Ash) |
+| **Mr. Assaat** | `ompimpa-ash` | Ekosistem Ash Declarative & Fail-Closed Policy | Bung Hatta (Query SQL eksplisit & granular) |
 | **Tuanku Tambusai** | `ompimpa-liveview`| Socket Memory Hygiene & LiveView Streams | Sutan Sjahrir (Distribusi proses global) |
 | **Djamaluddin Tamin** | `ompimpa-oban` | Worker Idempotency & Antrean Background Tangguh | Tuanku Tambusai (Beban proses real-time) |
 | **Sutan Sjahrir** | `ompimpa-otp` | Tata Kelola BEAM, Isolasi Crash & Supervision | Djamaluddin Tamin (Beban proses eksternal) |
