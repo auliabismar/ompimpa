@@ -2,7 +2,8 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { spawn } from "node:child_process";
 import { parseToml, type OmpimpaModelsConfig } from "../hooks/ompimpa-guard";
-
+import { runPrewalkScan, type PrewalkScanResult } from "./prewalk";
+import { runReview, type ReviewResult } from "./reviewer";
 const VERSION = "1.0.0";
 const REPO_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 
@@ -151,6 +152,12 @@ export async function main() {
     case "init":
       await handleInit(args.slice(1));
       break;
+    case "prewalk":
+      await handlePrewalk(args.slice(1));
+      break;
+    case "review":
+      await handleReview(args.slice(1));
+      break;
     case "sync":
       await handleSync(args.slice(1));
       break;
@@ -174,6 +181,103 @@ export async function main() {
     default:
       printHelp();
       break;
+  }
+}
+
+function printHelp() {
+  console.log(`
+OMP-IMPA (Integrated Modular Phoenix Architecture for OMP) v${VERSION}
+
+Usage:
+  ompimpa <command> [options]
+
+Commands:
+  init      Initialize OMP-IMPA configuration and agent prompts in current Phoenix project (Greenfield/Brownfield)
+  prewalk   Traverse and scan Elixir code against 26 Iron Laws and TTSR stream rules
+  review    Run comprehensive multi-specialist review panel & TEA quality scorecard
+  sync      Synchronize ompimpa.toml model tiers into agent frontmatter definitions
+  doctor    Diagnose project setup, toolchain availability, and Iron Law violations
+  verify    Execute strict Elixir quality gate (compile, format, credo, sobelow, tests)
+  link      Link this OMP-IMPA plugin into local OMP environment
+  version   Show version information
+  help      Show this help message
+
+Options:
+  --ash         Force enable Ash Framework presets
+  --no-ash      Force use Vanilla Phoenix + Ecto
+  --oban        Force enable Oban background job worker configuration
+  --no-oban     Force disable Oban presets
+  --force       Overwrite existing configuration files
+
+Plugin Installation:
+  Global Install (Git):      omp plugin install github:auliabismar/ompimpa
+  Marketplace Install:       omp plugin marketplace add auliabismar/ompimpa && omp plugin install ompimpa@ompimpa
+  Local Link (Dev):          omp plugin link /path/to/ompimpa
+`);
+}
+
+async function handlePrewalk(args: string[]) {
+  const targetDir = process.cwd();
+  const targetPaths = args.filter((a) => !a.startsWith("-"));
+  console.log(`\n🔍 Running OMP-IMPA Prewalk AST/Regex Scanner in: ${targetDir}`);
+  if (targetPaths.length > 0) {
+    console.log(`   Targets: ${targetPaths.join(", ")}`);
+  }
+
+  const res: PrewalkScanResult = await runPrewalkScan(targetDir, { targetPaths });
+  console.log(`\n📊 Scanned ${res.totalFiles} file(s) against ${res.scannedRules} TTSR rule(s):`);
+
+  if (res.passed) {
+    console.log("\n✅ [PREWALK PASSED] Zero Iron Law or TTSR syntax violations detected!");
+  } else {
+    console.log(`\n❌ [PREWALK FAILED] Found ${res.findings.length} violation(s):\n`);
+    for (const f of res.findings) {
+      console.log(`  • 🚫 [${f.ruleName}] ${f.file}:${f.line}:${f.column}`);
+      console.log(`    Detail: ${f.description}`);
+      console.log(`    Matched: \`${f.matchedText}\``);
+      if (f.remediation) {
+        console.log(`    💡 Remediasi: ${f.remediation}`);
+      }
+      console.log("");
+    }
+    process.exit(1);
+  }
+}
+
+async function handleReview(args: string[]) {
+  const targetDir = process.cwd();
+  const targetPaths = args.filter((a) => !a.startsWith("-"));
+  console.log(`\n🛡️ Running OMP-IMPA Multi-Specialist Review Panel in: ${targetDir}`);
+
+  const result: ReviewResult = await runReview(targetDir, { targetPaths });
+
+  console.log(`\n👥 Active Reviewer Panel (${result.activeReviewers.length} Persona):`);
+  for (const r of result.activeReviewers) {
+    console.log(`  • [${r.id}] ${r.name} (${r.persona}) -> ${r.role}`);
+  }
+
+  console.log(`\n📋 Scorecard Mutu Kualitas (TEA Architecture):`);
+  console.log(`  • Spec Review Score:  ${result.scorecard.specScore}/100`);
+  console.log(`  • Tech Review Score:  ${result.scorecard.techScore}/100`);
+  console.log(`  • Overall TEA Score:  ${result.scorecard.overallScore}/100 (Floor: ${result.scorecard.scoreFloor})`);
+
+  if (result.findings.length > 0) {
+    console.log(`\n⚠️ Temuan Audit (${result.findings.length}):`);
+    for (const f of result.findings) {
+      console.log(`  • [${f.severity}] [${f.category}] ${f.message}`);
+      if (f.file) {
+        console.log(`    Lokasi: ${f.file}:${f.line || 1}:${f.column || 1}`);
+      }
+      if (f.remediation) {
+        console.log(`    💡 Solusi: ${f.remediation}`);
+      }
+      console.log("");
+    }
+  }
+
+  console.log(`\n📢 Verdict: ${result.summary}`);
+  if (result.verdict === "BLOCKED") {
+    process.exit(1);
   }
 }
 

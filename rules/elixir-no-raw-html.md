@@ -5,6 +5,7 @@ scope: "tool:edit(*.ex), tool:edit(*.heex), tool:write(*.ex), tool:write(*.heex)
 condition:
   - '<%=\s*raw\([^)]+\)\s*%>'
   - '\{raw\([^)]+\)\}'
+  - '\bPhoenix\.HTML\.raw\([^)]+\)'
 interruptMode: always
 ---
 
