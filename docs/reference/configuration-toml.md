@@ -12,8 +12,6 @@ Dokumen referensi ini menjelaskan setiap parameter yang dapat dikonfigurasi pada
 # ==========================================
 [project]
 name = "mimar"                 # Nama proyek Phoenix target
-framework = "phoenix"          # Target framework
-
 # ==========================================
 # Pengaturan Dwi-Bahasa (Dual-Locale)
 # ==========================================
@@ -58,14 +56,10 @@ steps = [
 ]
 
 # ==========================================
-# Manajemen Sumber Daya Mesin & Konkurensi
+# Manajemen Sumber Daya & Worktree
 # ==========================================
 [resources]
-max_concurrency = 2            # Batas maksimal subagent kompilasi paralel (mencegah lonjakan RAM/CPU)
 use_git_worktrees = true       # Eksekusi task paralel di Git Worktree terisolasi (~/.omp/wt/)
-shared_lsp_server = true       # Gunakan 1 instance LSP bersama untuk seluruh subagent
-
-# ==========================================
 # Pemetaan Model Subagent (Terkoneksi ke OMP Roles)
 # ==========================================
 [models]
@@ -104,9 +98,7 @@ output_dir = "docs"            # Target folder untuk dokumentasi Diátaxis resmi
 # Alat Tambahan & Memori Institusional
 # ==========================================
 [tools]
-enable_tidewave = true         # Aktifkan Tidewave MCP untuk inspeksi runtime BEAM live
 enable_compound_memory = true  # Indeks dan simpan pola solusi di _ompimpa/solutions/
-
 # ==========================================
 # Verifikasi Runtime & UI
 # ==========================================

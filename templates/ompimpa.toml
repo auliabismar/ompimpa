@@ -1,7 +1,6 @@
 # ompimpa.toml - Konfigurasi Tata Kelola Proyek Phoenix (OMP-IMPA)
 [project]
 name = "my_app"
-framework = "phoenix"
 
 [locale]
 communication_language = "id"    # Bahasa agen saat berdiskusi di chat ("id" | "en")
@@ -42,10 +41,7 @@ steps = [
 # Manajemen Sumber Daya Mesin & Konkurensi
 # ==========================================
 [resources]
-max_concurrency = 2              # Batas subagent paralel yang aktif bersamaan (mencegah lonjakan RAM/CPU)
 use_git_worktrees = true         # Eksekusi task paralel di Git Worktree terisolasi (~/.omp/wt/)
-shared_lsp_server = true         # Gunakan 1 instance LSP bersama untuk seluruh subagent
-
 # ==========================================
 # Pemetaan Model Subagent (Terkoneksi ke OMP Roles)
 # ==========================================
@@ -76,9 +72,7 @@ diataxis_format = true           # Terapkan standar 4 kuadran Diátaxis di folde
 output_dir = "docs"              # Target folder untuk dokumentasi Diátaxis resmi proyek
 
 [tools]
-enable_tidewave = true           # Aktifkan Tidewave MCP untuk inspeksi runtime BEAM live
 enable_compound_memory = true    # Simpan dan indeks solusi teruji di _ompimpa/solutions/
-
 [runtime_verification]
 browser_e2e = true               # Buka Chromium untuk verifikasi visual jalur kritis
 in_process_liveview = true       # Jalankan Phoenix.LiveViewTest in-process

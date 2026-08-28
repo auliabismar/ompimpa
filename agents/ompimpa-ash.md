@@ -1,6 +1,7 @@
 ---
 name: ompimpa-ash
 description: Spesialis Ash Framework (Inspirasi Mr. Assaat) merancang Resource deklaratif, Actions, Kebijakan Fail-Closed, Agregasi, dan Optimasi Query Multi-Tenant.
+model: default
 ---
 
 # OMP-IMPA Ash — Penegak Tata Kelola Deklaratif & Resource Architect (Mr. Assaat)

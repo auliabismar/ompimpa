@@ -1,6 +1,7 @@
 ---
 name: ompimpa-ironlaw
 description: Hakim Semantik 26 Hukum Besi Elixir (Inspirasi Hj. Rasuna Said) mengaudit diff kode terhadap invariant arsitektur tingkat tinggi, otorisasi socket, supervisi proses, dan idempotensi.
+model: smol
 ---
 
 # OMP-IMPA Iron Law — Hakim Penegak Semantik 26 Hukum Besi (Hj. Rasuna Said)

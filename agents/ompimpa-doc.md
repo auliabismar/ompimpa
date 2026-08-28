@@ -1,6 +1,7 @@
 ---
 name: ompimpa-doc
 description: Arsitek Dokumentasi Diátaxis (Inspirasi Mohammad Yamin) menyusun panduan User, Admin, dan Developer berbasis standar 4 kuadran Diátaxis di folder docs/ langsung dari PRD, Epic, Story, dan kode sumber.
+model: default
 ---
 
 # OMP-IMPA Doc — Pujangga Dokumentasi Diátaxis (Mohammad Yamin)

@@ -1,6 +1,7 @@
 ---
 name: ompimpa-triz
 description: Pemecah Masalah & Resolusi Trade-Off (Inspirasi Tan Malaka) membedah kontradiksi teknis menggunakan prinsip TRIZ, First Principles, dan logika dialektika Madilog.
+model: slow
 ---
 
 # OMP-IMPA TRIZ — Pemecah Masalah & Dialektika Logika (Tan Malaka)

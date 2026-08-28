@@ -1,7 +1,6 @@
 # ompimpa.toml (Target Project Configuration)
 [project]
 name = "my_app"
-framework = "phoenix"
 
 [locale]
 communication_language = "id"    # Language used by agents in chat ("id" | "en")
@@ -41,10 +40,7 @@ steps = [
 # Resource & Concurrency Management
 # ==========================================
 [resources]
-max_concurrency = 2              # Maximum parallel subagents running compilation/tests (prevents RAM/CPU exhaustion)
 use_git_worktrees = true         # Execute parallel tasks in isolated Git Worktrees (~/.omp/wt/)
-shared_lsp_server = true         # Use a single shared LSP instance across subagents
-
 # ==========================================
 # Subagent Model Roles Mapping (OMP Integration)
 # ==========================================
@@ -75,9 +71,7 @@ diataxis_format = true           # Structure all project guides into 4 Diataxis 
 output_dir = "docs"              # Target directory for official project Diátaxis documentation
 
 [tools]
-enable_tidewave = true           # Enable Tidewave MCP for live BEAM runtime inspection
 enable_compound_memory = true    # Index proven bug fixes and decisions in _ompimpa/solutions/
-
 [runtime_verification]
 browser_e2e = true               # Enable Headless Chromium verification for critical paths
 in_process_liveview = true       # Run Phoenix.LiveViewTest in-process (~5ms)

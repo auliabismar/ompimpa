@@ -1,9 +1,108 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { spawn } from "node:child_process";
+import { parseToml, type OmpimpaModelsConfig } from "../hooks/ompimpa-guard";
 
 const VERSION = "1.0.0";
 const REPO_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+
+export const DEFAULT_MODELS: Record<string, string> = {
+  "ompimpa-balairung": "slow",
+  "ompimpa-ideate": "slow",
+  "ompimpa-prd": "plan",
+  "ompimpa-adr": "plan",
+  "ompimpa-ui": "design",
+  "ompimpa-test": "default",
+  "ompimpa-dev": "default",
+  "ompimpa-ash": "default",
+  "ompimpa-liveview": "default",
+  "ompimpa-ecto": "default",
+  "ompimpa-oban": "default",
+  "ompimpa-otp": "default",
+  "ompimpa-doc": "default",
+  "ompimpa-commit": "smol",
+  "ompimpa-ironlaw": "smol",
+  "ompimpa-security": "slow",
+  "ompimpa-debug": "slow",
+  "ompimpa-triz": "slow",
+};
+
+export function resolveAgentModel(agentName: string, modelsConfig?: OmpimpaModelsConfig): string {
+  if (!modelsConfig) return DEFAULT_MODELS[agentName] || "default";
+
+  if (agentName === "ompimpa-balairung" && modelsConfig.balairung) return modelsConfig.balairung;
+  if (agentName === "ompimpa-ideate" && modelsConfig.ideate) return modelsConfig.ideate;
+  if (agentName === "ompimpa-prd" && modelsConfig.prd) return modelsConfig.prd;
+  if (agentName === "ompimpa-adr" && modelsConfig.adr) return modelsConfig.adr;
+  if (agentName === "ompimpa-ui" && modelsConfig.ui) return modelsConfig.ui;
+  if (agentName === "ompimpa-test" && modelsConfig.test) return modelsConfig.test;
+  if (agentName === "ompimpa-commit" && modelsConfig.commit) return modelsConfig.commit;
+  if (agentName === "ompimpa-ironlaw" && modelsConfig.ironlaw) return modelsConfig.ironlaw;
+  if (agentName === "ompimpa-security" && modelsConfig.security) return modelsConfig.security;
+  if (agentName === "ompimpa-debug" && modelsConfig.debug) return modelsConfig.debug;
+  if (agentName === "ompimpa-doc" && modelsConfig.doc) return modelsConfig.doc;
+  if (agentName === "ompimpa-triz" && (modelsConfig.triz || modelsConfig.ideate)) return modelsConfig.triz || modelsConfig.ideate!;
+
+  if (
+    ["ompimpa-ash", "ompimpa-liveview", "ompimpa-ecto", "ompimpa-oban", "ompimpa-otp"].includes(agentName)
+  ) {
+    return modelsConfig.dev || DEFAULT_MODELS[agentName] || "default";
+  }
+
+  const shortKey = agentName.replace(/^ompimpa-/, "");
+  if (modelsConfig[shortKey]) return modelsConfig[shortKey]!;
+
+  return DEFAULT_MODELS[agentName] || "default";
+}
+
+export async function syncAgentModels(
+  targetDir: string = process.cwd(),
+  agentsDir: string = path.join(REPO_ROOT, "agents")
+): Promise<{ updated: string[]; total: number }> {
+  const tomlPath = path.join(targetDir, "ompimpa.toml");
+  let modelsConfig: OmpimpaModelsConfig | undefined;
+
+  if (await fileExists(tomlPath)) {
+    const tomlContent = await fs.readFile(tomlPath, "utf-8");
+    const parsed = parseToml(tomlContent);
+    modelsConfig = parsed.models;
+  }
+
+  const updated: string[] = [];
+  if (!(await fileExists(agentsDir))) {
+    return { updated, total: 0 };
+  }
+
+  const files = await fs.readdir(agentsDir);
+  const agentFiles = files.filter((f) => f.startsWith("ompimpa-") && f.endsWith(".md"));
+
+  for (const file of agentFiles) {
+    const agentName = file.replace(/\.md$/, "");
+    const expectedModel = resolveAgentModel(agentName, modelsConfig);
+    const filePath = path.join(agentsDir, file);
+    const content = await fs.readFile(filePath, "utf-8");
+
+    const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
+    if (!frontmatterMatch) continue;
+
+    const frontmatter = frontmatterMatch[1];
+    let newFrontmatter: string;
+
+    if (/\bmodel:\s*[^\n]+/.test(frontmatter)) {
+      newFrontmatter = frontmatter.replace(/\bmodel:\s*[^\n]+/, `model: ${expectedModel}`);
+    } else {
+      newFrontmatter = `${frontmatter}\nmodel: ${expectedModel}`;
+    }
+
+    if (newFrontmatter !== frontmatter) {
+      const newContent = content.replace(/^---\n[\s\S]*?\n---/, `---\n${newFrontmatter}\n---`);
+      await fs.writeFile(filePath, newContent, "utf-8");
+      updated.push(`${file} -> ${expectedModel}`);
+    }
+  }
+
+  return { updated, total: agentFiles.length };
+}
 
 async function runCommand(
   cmd: string,
@@ -52,6 +151,9 @@ export async function main() {
     case "init":
       await handleInit(args.slice(1));
       break;
+    case "sync":
+      await handleSync(args.slice(1));
+      break;
     case "doctor":
       await handleDoctor(args.slice(1));
       break;
@@ -84,6 +186,7 @@ Usage:
 
 Commands:
   init      Initialize OMP-IMPA configuration and agent prompts in current Phoenix project (Greenfield/Brownfield)
+  sync      Synchronize ompimpa.toml model tiers into agent frontmatter definitions
   doctor    Diagnose project setup, toolchain availability, and Iron Law violations
   verify    Execute strict Elixir quality gate (compile, format, credo, sobelow, tests)
   link      Link this OMP-IMPA plugin into local OMP environment
@@ -104,6 +207,19 @@ Plugin Installation:
 `);
 }
 
+async function handleSync(_flags: string[]) {
+  const targetDir = process.cwd();
+  console.log(`\n🔄 Synchronizing OMP-IMPA models from ompimpa.toml in: ${targetDir}`);
+  const result = await syncAgentModels(targetDir);
+  if (result.updated.length > 0) {
+    console.log(`✅ Synchronized ${result.updated.length} agent definition(s):`);
+    for (const item of result.updated) {
+      console.log(`   • ${item}`);
+    }
+  } else {
+    console.log(`✨ All ${result.total} agent model definitions are up to date!`);
+  }
+}
 async function handleInit(flags: string[]) {
   const targetDir = process.cwd();
   console.log(`\n🚀 Initializing OMP-IMPA in: ${targetDir}`);
@@ -179,7 +295,6 @@ async function handleInit(flags: string[]) {
     const tomlContent = `# ompimpa.toml - Project Governance Configuration (OMP-IMPA)
 [project]
 name = "${projectName}"
-framework = "phoenix"
 
 [locale]
 communication_language = "id"    # Language used by agents in chat ("id" | "en")
@@ -204,10 +319,18 @@ enable_tech_review = true        # Technical Review: Audit Elixir/Phoenix compli
 parallel_reviewers = 6           # Panel of 6 parallel subagents: IronLaw, Security, QA/Test, Compiler, Ecto/Ash, LiveView/Oban
 max_triage_fix_cycles = 2        # Maximum automated remediation cycles before human escalation
 
+[quality.nfr]
+target_p95_latency_ms = 50       # Target p95 response latency (ms) for PRD non-functional requirements
+
+[quality.verify]
+steps = [
+  "compile --warnings-as-errors",
+  "format --check-formatted",
+  "test"
+]
+
 [resources]
-max_concurrency = 2              # Maximum parallel subagents running compilation/tests (prevents RAM/CPU exhaustion)
 use_git_worktrees = true         # Execute parallel tasks in isolated Git Worktrees (~/.omp/wt/)
-shared_lsp_server = true         # Use a single shared LSP instance across subagents
 
 [models]
 balairung = "slow"              # Dewan Tokoh Balairung (3-Round Deliberation & Dialectics)
@@ -236,7 +359,6 @@ diataxis_format = true           # Apply Diataxis 4-quadrant standard
 output_dir = "docs"              # Target directory for official Diataxis docs
 
 [tools]
-enable_tidewave = true           # Enable Tidewave MCP for BEAM runtime live inspection
 enable_compound_memory = true    # Index and store proven solution patterns in _ompimpa/solutions/
 
 [runtime_verification]
@@ -300,10 +422,53 @@ features: {}
       console.log("✅ Installed .git/hooks/pre-commit (Fast Pre-Commit Quality Gate)");
     }
   }
+  // 8. Synchronize Model Tiers to Agent Definitions
+  await syncAgentModels(targetDir);
+  console.log("✅ Synchronized agent models from ompimpa.toml to agents/");
 
   console.log("\n🎉 OMP-IMPA initialization complete!");
   console.log("👉 Run `ompimpa doctor` to check project health.");
   console.log("👉 Start your session with `omp` and run `/ompimpa:ideate` or `/ompimpa:prd`.");
+}
+
+export async function validateDiataxisStructure(
+  targetDir: string = process.cwd(),
+  docsDirName: string = "docs"
+): Promise<{ valid: boolean; quadrants: Record<string, number>; issues: string[] }> {
+  const docsPath = path.join(targetDir, docsDirName);
+  const quadrants: Record<string, number> = {
+    tutorials: 0,
+    "how-to": 0,
+    reference: 0,
+    explanation: 0,
+  };
+  const issues: string[] = [];
+
+  if (!(await fileExists(docsPath))) {
+    return { valid: false, quadrants, issues: [`Documentation directory '${docsDirName}' does not exist`] };
+  }
+
+  for (const q of Object.keys(quadrants)) {
+    const qPath = path.join(docsPath, q);
+    if (await fileExists(qPath)) {
+      const files = await fs.readdir(qPath);
+      quadrants[q] = files.filter((f) => f.endsWith(".md")).length;
+    } else {
+      issues.push(`Missing Diátaxis quadrant folder: ${docsDirName}/${q}`);
+    }
+  }
+
+  return { valid: issues.length === 0, quadrants, issues };
+}
+
+export function parseVerifyStep(stepStr: string): { name: string; cmd: string; args: string[] } {
+  const parts = stepStr.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { name: "mix", cmd: "mix", args: [] };
+
+  if (parts[0] === "mix") {
+    return { name: `mix ${parts.slice(1).join(" ")}`, cmd: "mix", args: parts.slice(1) };
+  }
+  return { name: `mix ${parts.join(" ")}`, cmd: "mix", args: parts };
 }
 
 async function handleDoctor(_flags: string[]) {
@@ -331,7 +496,56 @@ async function handleDoctor(_flags: string[]) {
     }
   }
 
-  // 2. Check OMP-IMPA TTSR Stream Rules
+  // 2. Check Subagent Model Bindings
+  console.log("\n🤖 OMP Subagent Model Bindings:");
+  const agentsDir = path.join(REPO_ROOT, "agents");
+  try {
+    const agentFiles = (await fs.readdir(agentsDir)).filter((f) => f.startsWith("ompimpa-") && f.endsWith(".md"));
+    const tomlPath = path.join(targetDir, "ompimpa.toml");
+    let modelsConfig: OmpimpaModelsConfig | undefined;
+    if (await fileExists(tomlPath)) {
+      const content = await fs.readFile(tomlPath, "utf-8");
+      modelsConfig = parseToml(content).models;
+    }
+
+    for (const f of agentFiles) {
+      const agentName = f.replace(/\.md$/, "");
+      const filePath = path.join(agentsDir, f);
+      const content = await fs.readFile(filePath, "utf-8");
+      const modelMatch = content.match(/\bmodel:\s*([^\n]+)/);
+      const boundModel = modelMatch ? modelMatch[1].trim() : "unbound";
+      const expectedModel = resolveAgentModel(agentName, modelsConfig);
+      const isSynced = boundModel === expectedModel;
+      console.log(`  ${isSynced ? "✅" : "⚠️"} [${isSynced ? "SYNCED" : "DRIFT"}] ${agentName} -> ${boundModel} (expected: ${expectedModel})`);
+      if (!isSynced) issues++;
+    }
+  } catch {
+    console.log(`  ⚠️ [WARNING] Failed to inspect agents directory (${agentsDir})`);
+  }
+
+  // 3. Check Diátaxis Documentation Structure
+  console.log("\n📚 Diátaxis Documentation Structure:");
+  const tomlPath = path.join(targetDir, "ompimpa.toml");
+  let docsDirName = "docs";
+  if (await fileExists(tomlPath)) {
+    const content = await fs.readFile(tomlPath, "utf-8");
+    const parsed = parseToml(content);
+    if (parsed.documentation?.output_dir) docsDirName = parsed.documentation.output_dir;
+  }
+  const diataxis = await validateDiataxisStructure(targetDir, docsDirName);
+  if (diataxis.valid) {
+    console.log(`  ✅ [VALID] Diátaxis 4-quadrant layout active in '${docsDirName}/'`);
+    for (const [quadrant, count] of Object.entries(diataxis.quadrants)) {
+      console.log(`     • ${quadrant}: ${count} document(s)`);
+    }
+  } else {
+    console.log(`  ⚠️ [WARNING] Diátaxis structure incomplete in '${docsDirName}/':`);
+    for (const issue of diataxis.issues) {
+      console.log(`     • ${issue}`);
+    }
+  }
+
+  // 4. Check OMP-IMPA TTSR Stream Rules
   console.log("\n🛡️ OMP TTSR Real-Time Stream Rules:");
   const rulesDir = path.join(REPO_ROOT, "rules");
   try {
@@ -347,7 +561,7 @@ async function handleDoctor(_flags: string[]) {
     console.log(`  ⚠️ [WARNING] Failed to load TTSR rules directory (${rulesDir})`);
   }
 
-  // 3. Check OMP Plugin Manifests
+  // 5. Check OMP Plugin Manifests
   console.log("\n🔌 OMP Plugin Manifests:");
   const ompPluginJson = path.join(REPO_ROOT, ".omp-plugin", "plugin.json");
   const ompMarketplaceJson = path.join(REPO_ROOT, ".omp-plugin", "marketplace.json");
@@ -358,7 +572,7 @@ async function handleDoctor(_flags: string[]) {
     console.log(`  ✅ [FOUND] OMP Marketplace catalog (.omp-plugin/marketplace.json)`);
   }
 
-  // 4. Check toolchains
+  // 6. Check toolchains
   console.log("\n🛠️ Toolchain availability:");
   const tools = ["omp", "mix", "git", "bun", "rtk"];
   for (const tool of tools) {
@@ -373,21 +587,31 @@ async function handleDoctor(_flags: string[]) {
   if (issues === 0) {
     console.log("\n✨ All OMP-IMPA components are properly configured!");
   } else {
-    console.log(`\n⚠️ Found ${issues} missing component(s). Run \`ompimpa init\` to repair.`);
+    console.log(`\n⚠️ Found ${issues} issue(s). Run \`ompimpa sync\` or \`ompimpa init\` to repair.`);
   }
 }
 
 async function handleVerify(_flags: string[]) {
   const targetDir = process.cwd();
-  console.log(`\n🛡️ Executing OMP-IMPA Strict Quality Gate in: ${targetDir}\n`);
-
-  const steps = [
-    { name: "Compiler Strict Mode", cmd: "mix", args: ["compile", "--warnings-as-errors"] },
-    { name: "Code Formatter", cmd: "mix", args: ["format", "--check-formatted"] },
-    { name: "ExUnit & LiveView Tests", cmd: "mix", args: ["test"] },
+  const tomlPath = path.join(targetDir, "ompimpa.toml");
+  let stepsConfig: string[] = [
+    "compile --warnings-as-errors",
+    "format --check-formatted",
+    "test",
   ];
 
-  for (const step of steps) {
+  if (await fileExists(tomlPath)) {
+    const tomlContent = await fs.readFile(tomlPath, "utf-8");
+    const parsed = parseToml(tomlContent);
+    if (parsed.quality?.verify?.steps && parsed.quality.verify.steps.length > 0) {
+      stepsConfig = parsed.quality.verify.steps;
+    }
+  }
+
+  console.log(`\n🛡️ Executing OMP-IMPA Strict Quality Gate (${stepsConfig.length} steps) in: ${targetDir}\n`);
+
+  for (const stepStr of stepsConfig) {
+    const step = parseVerifyStep(stepStr);
     console.log(`\n▶️ [STEP] ${step.name} (\`${step.cmd} ${step.args.join(" ")}\`):`);
     const res = await runCommand(step.cmd, step.args, targetDir);
     if (res.code !== 0) {
@@ -396,7 +620,7 @@ async function handleVerify(_flags: string[]) {
     }
   }
 
-  console.log("\n🏆 100% Quality Gate PASSED: Zero warnings, formatted, all tests green!");
+  console.log("\n🏆 100% Quality Gate PASSED: All configured steps green!");
 }
 
 async function handleLink(_flags: string[]) {

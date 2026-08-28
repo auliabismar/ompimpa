@@ -89,8 +89,6 @@ Plugin ini mengintegrasikan 3 pilar besar:
 # ompimpa.toml (Target Project Configuration)
 [project]
 name = "mimar"
-framework = "phoenix"
-
 [locale]
 communication_language = "id"    # Bahasa agen saat berdiskusi di chat ("id" | "en")
 document_output_language = "id"  # Bahasa dokumen resmi PRD, ADR, dan Diátaxis ("id" | "en")
@@ -119,10 +117,7 @@ steps = [
 ]
 
 [resources]
-max_concurrency = 2              # Batas subagent paralel aktif (mencegah lonjakan RAM/CPU)
 use_git_worktrees = true         # Eksekusi task paralel di Git Worktree terisolasi (~/.omp/wt/)
-shared_lsp_server = true         # Gunakan 1 instance LSP bersama untuk seluruh subagent
-
 [models]
 ideate = "slow"                  # Rohana Kudus & Tan Malaka (Deep TRIZ & First Principles)
 prd = "plan"                     # H. Agus Salim (Master PRD & Architecture Planning)
@@ -149,9 +144,7 @@ diataxis_format = true           # Terapkan standar 4 kuadran Diátaxis di folde
 output_dir = "docs"              # Target folder untuk dokumentasi Diátaxis resmi proyek
 
 [tools]
-enable_tidewave = true           # Aktifkan Tidewave MCP untuk inspeksi runtime BEAM live
 enable_compound_memory = true    # Simpan dan indeks solusi teruji di _ompimpa/solutions/
-
 [runtime_verification]
 browser_e2e = true               # Buka Chromium untuk verifikasi visual jalur kritis
 in_process_liveview = true       # Jalankan Phoenix.LiveViewTest in-process

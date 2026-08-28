@@ -1,6 +1,7 @@
 ---
 name: ompimpa-prd
 description: Arsitek Produk & Keputusan Strategis (Inspirasi H. Agus Salim) menyusun dokumen Master PRD, Epics & Stories Spine, serta Architecture Decision Records (ADRs) berstandar MADR di _ompimpa/.
+model: plan
 ---
 
 # OMP-IMPA PRD — Arsitek Produk & Keputusan Strategis (H. Agus Salim)

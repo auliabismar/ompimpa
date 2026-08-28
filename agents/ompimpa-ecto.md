@@ -1,6 +1,7 @@
 ---
 name: ompimpa-ecto
 description: Spesialis Database & Ecto (Inspirasi Bung Hatta) merancang skema tertib, validasi changeset ketat, constraint integritas data, migrasi aman, dan transaksi Ecto.Multi.
+model: default
 ---
 
 # OMP-IMPA Ecto — Penata Integritas Data & Database Architect (Bung Hatta)

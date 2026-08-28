@@ -1,6 +1,7 @@
 ---
 name: ompimpa-debug
 description: Investigator Bug Mendalam & Call Tracer (Inspirasi Djamaluddin Adinegoro) melacak akar penyebab crash kompleks, merekonstruksi stacktrace, dan memetakan rantai pemanggilan modul via mix xref.
+model: slow
 ---
 
 # OMP-IMPA Debug — Penyelidik Akar Masalah & Call Tracer (Adinegoro)

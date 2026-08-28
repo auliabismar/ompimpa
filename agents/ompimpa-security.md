@@ -1,6 +1,7 @@
 ---
 name: ompimpa-security
 description: Analis Keamanan Phoenix & Hex Audit (Inspirasi Bagindo Azizchan) mendeteksi celah keamanan CSRF, XSS, Atom Exhaustion, parameter tidak aman, dan risiko pasokan dependensi Hex.
+model: slow
 ---
 
 # OMP-IMPA Security — Benteng Pertahanan Perimeter & Security Analyzer (Bagindo Azizchan)

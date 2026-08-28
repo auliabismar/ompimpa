@@ -51,12 +51,209 @@ export interface StopResult {
   reason?: string;
 }
 
+export interface OmpimpaModelsConfig {
+  balairung?: string;
+  ideate?: string;
+  prd?: string;
+  adr?: string;
+  ui?: string;
+  test?: string;
+  dev?: string;
+  commit?: string;
+  ironlaw?: string;
+  security?: string;
+  debug?: string;
+  doc?: string;
+  [key: string]: string | undefined;
+}
+
+export interface OmpimpaQualityConfig {
+  enable_atdd?: boolean;
+  quality_score_floor?: number;
+  warnings_as_errors?: boolean;
+  max_dev_retries?: number;
+  auto_macro_review_in_dev?: boolean;
+  auto_triage_and_fix?: boolean;
+  review?: {
+    enable_spec_review?: boolean;
+    enable_tech_review?: boolean;
+    parallel_reviewers?: number;
+    max_triage_fix_cycles?: number;
+  };
+  nfr?: {
+    target_p95_latency_ms?: number;
+  };
+  verify?: {
+    steps?: string[];
+  };
+}
+
+export interface OmpimpaConfig {
+  project?: {
+    name?: string;
+    framework?: string;
+  };
+  locale?: {
+    communication_language?: string;
+    document_output_language?: string;
+  };
+  governance?: {
+    enable_party_mode?: boolean;
+    enable_prd_adr?: boolean;
+    artifacts_dir?: string;
+  };
+  quality?: OmpimpaQualityConfig;
+  models?: OmpimpaModelsConfig;
+  stacks?: {
+    use_ash_framework?: boolean;
+    use_oban?: boolean;
+    use_tailwind?: boolean;
+    liveview?: {
+      stream_threshold_rows?: number;
+    };
+  };
+  documentation?: {
+    diataxis_format?: boolean;
+    output_dir?: string;
+  };
+  tools?: {
+    enable_tidewave?: boolean;
+    enable_compound_memory?: boolean;
+  };
+  resources?: {
+    max_concurrency?: number;
+    use_git_worktrees?: boolean;
+    shared_lsp_server?: boolean;
+  };
+}
+
 export interface OmpEventBus {
   on(event: "session_start", handler: (event: unknown, ctx: HookContext) => Promise<void> | void): void;
   on(event: "tool_call", handler: (event: ToolCallEvent, ctx: HookContext) => Promise<{ block?: boolean; reason?: string } | undefined> | { block?: boolean; reason?: string } | undefined): void;
   on(event: "tool_result", handler: (event: ToolResultEvent, ctx: HookContext) => Promise<{ content?: unknown[]; details?: unknown } | undefined> | { content?: unknown[]; details?: unknown } | undefined): void;
   on(event: "ttsr_triggered", handler: (event: unknown, ctx: HookContext) => Promise<void> | void): void;
   on(event: "session_stop", handler: (event: StopEvent, ctx: HookContext) => Promise<StopResult | undefined> | StopResult | undefined): void;
+}
+
+export type TomlPrimitive = string | number | boolean | string[];
+export type TomlMap = { [key: string]: TomlPrimitive | TomlMap };
+
+/**
+ * Parser TOML terpadu dan type-safe untuk membaca file `ompimpa.toml`.
+ */
+export function parseToml(content: string): OmpimpaConfig {
+  const result: TomlMap = {};
+  let currentSection = "";
+
+  const lines = content.split("\n");
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+
+    // Deteksi Header Section: [section] atau [section.subsection]
+    const sectionMatch = line.match(/^\[([A-Za-z0-9_.-]+)\]$/);
+    if (sectionMatch) {
+      currentSection = sectionMatch[1];
+      continue;
+    }
+
+    // Deteksi Key = Value
+    const eqIdx = line.indexOf("=");
+    if (eqIdx === -1) continue;
+
+    const key = line.slice(0, eqIdx).trim();
+    let valueStr = line.slice(eqIdx + 1).trim();
+
+    // Hapus inline comment jika tidak di dalam quote
+    let inQuotes = false;
+    let quoteChar = "";
+    let commentIdx = -1;
+    for (let i = 0; i < valueStr.length; i++) {
+      const char = valueStr[i];
+      if ((char === '"' || char === "'") && (!inQuotes || quoteChar === char)) {
+        inQuotes = !inQuotes;
+        quoteChar = inQuotes ? char : "";
+      }
+      if (char === "#" && !inQuotes) {
+        commentIdx = i;
+        break;
+      }
+    }
+    if (commentIdx !== -1) {
+      valueStr = valueStr.slice(0, commentIdx).trim();
+    }
+
+    let parsedValue: TomlPrimitive = valueStr;
+    if (valueStr === "true") parsedValue = true;
+    else if (valueStr === "false") parsedValue = false;
+    else if (/^-?\d+$/.test(valueStr)) parsedValue = parseInt(valueStr, 10);
+    else if (/^-?\d+\.\d+$/.test(valueStr)) parsedValue = parseFloat(valueStr);
+    else if (
+      (valueStr.startsWith('"') && valueStr.endsWith('"')) ||
+      (valueStr.startsWith("'") && valueStr.endsWith("'"))
+    ) {
+      parsedValue = valueStr.slice(1, -1);
+    } else if (valueStr.startsWith("[") && valueStr.endsWith("]")) {
+      parsedValue = valueStr
+        .slice(1, -1)
+        .split(",")
+        .map((s) => s.trim().replace(/^["']|["']$/g, ""))
+        .filter(Boolean);
+    }
+
+    if (currentSection) {
+      const parts = currentSection.split(".");
+      let target = result;
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        const existing = target[part];
+        if (!existing || typeof existing !== "object" || Array.isArray(existing)) {
+          target[part] = {};
+        }
+        if (i === parts.length - 1) {
+          (target[part] as TomlMap)[key] = parsedValue;
+        } else {
+          target = target[part] as TomlMap;
+        }
+      }
+    } else {
+      result[key] = parsedValue;
+    }
+  }
+
+  return result as unknown as OmpimpaConfig;
+}
+
+/**
+ * Membaca ompimpa.toml dari direktori kerja.
+ */
+export function loadOmpimpaConfig(cwd: string = process.cwd()): OmpimpaConfig {
+  const tomlPath = path.join(cwd, "ompimpa.toml");
+  try {
+    if (fs.existsSync(tomlPath)) {
+      const content = fs.readFileSync(tomlPath, "utf-8");
+      return parseToml(content);
+    }
+  } catch {
+    // Fallback jika tidak ada atau gagal dibaca
+  }
+  return {};
+}
+/**
+ * Memvalidasi apakah skor TEA scorecard memenuhi floor di ompimpa.toml.
+ */
+export function validateScoreFloor(
+  score: number,
+  config: OmpimpaConfig
+): { pass: boolean; reason?: string } {
+  const floor = config.quality?.quality_score_floor ?? 90;
+  if (score < floor) {
+    return {
+      pass: false,
+      reason: `[OMP-IMPA Quality Gate] Skor pengujian TEA (${score}) berada di bawah batas minimum kelulusan (${floor}). Commit diblokir hingga tes diperbaiki.`,
+    };
+  }
+  return { pass: true };
 }
 
 /**
@@ -69,6 +266,8 @@ export function handleToolCallGuard(
   if (event.toolName !== "bash") return undefined;
 
   const command = String(event.input.command || "").trim();
+  const cwd = ctx?.cwd || process.cwd();
+  const config = loadOmpimpaConfig(cwd);
 
   // 1. Blokir upaya bypass pre-commit hook (Iron Law #26)
   if (/\bgit\s+commit\b/i.test(command) && /(--no-verify|-n\b)/.test(command)) {
@@ -79,8 +278,27 @@ export function handleToolCallGuard(
     };
   }
 
-  // 2. Berikan notifikasi jika git commit normal dipanggil
+  // 2. Berikan notifikasi jika git commit normal dipanggil & cek ATDD
   if (/\bgit\s+commit\b/i.test(command)) {
+    if (config.quality?.enable_atdd) {
+      const testDir = path.join(cwd, "test");
+      if (fs.existsSync(testDir)) {
+        try {
+          const testEntries = fs.readdirSync(testDir);
+          if (testEntries.length === 0) {
+            if (ctx?.hasUI && ctx.ui?.notify) {
+              ctx.ui.notify(
+                "⚠️ [OMP-IMPA ATDD] `enable_atdd` aktif: Pastikan pengujian Red-Phase (`test/`) sudah disertakan sebelum commit.",
+                "warning"
+              );
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+
     if (ctx?.hasUI && ctx.ui?.notify) {
       ctx.ui.notify("🛡️ [OMP-IMPA] Menjalankan Fast Pre-Commit Gate (Sub-2-Detik)...", "info");
     }
@@ -91,6 +309,16 @@ export function handleToolCallGuard(
     if (ctx?.hasUI && ctx.ui?.notify) {
       ctx.ui.notify(
         "💡 [OMP-IMPA Tip] Gunakan scoped test (`mix test path/to/file_test.exs`) untuk siklus koding cepat.",
+        "info"
+      );
+    }
+  }
+
+  // 4. Tegakkan warnings_as_errors jika mix compile dipanggil tanpa flag ketat
+  if (config.quality?.warnings_as_errors && command === "mix compile") {
+    if (ctx?.hasUI && ctx.ui?.notify) {
+      ctx.ui.notify(
+        "🛡️ [OMP-IMPA Quality] `warnings_as_errors` aktif. Disarankan menggunakan `mix compile --warnings-as-errors`.",
         "info"
       );
     }
@@ -152,14 +380,33 @@ export function compactTestOutput(
  * Logika pengecekan kelanjutan dev loop otomatis (session_stop).
  */
 export function checkDevLoopContinuation(cwd: string = process.cwd()): StopResult | undefined {
-  const statusYamlPath = path.join(cwd, "_ompimpa", "status", "feature-status.yaml");
+  const config = loadOmpimpaConfig(cwd);
+  const artifactsDir = config.governance?.artifacts_dir || "_ompimpa";
+  const statusYamlPath = path.join(cwd, artifactsDir, "status", "feature-status.yaml");
+  const maxRetries = config.quality?.max_dev_retries ?? 3;
 
   try {
     if (fs.existsSync(statusYamlPath)) {
       const content = fs.readFileSync(statusYamlPath, "utf-8");
+      const lines = content.split("\n");
+
+      // Cek apakah ada story yang melebihi batas retry (Circuit Breaker)
+      for (const line of lines) {
+        const retryMatch = line.match(/\bretries:\s*(\d+)/i);
+        if (retryMatch) {
+          const retries = parseInt(retryMatch[1], 10);
+          if (retries >= maxRetries) {
+            return {
+              continue: false,
+              decision: "block",
+              reason: `[OMP-IMPA Circuit Breaker] Percobaan perbaikan telah mencapai batas maksimal (${retries}/${maxRetries} retries). Autonomous loop dihentikan untuk eskalasi ke manusia.`,
+            };
+          }
+        }
+      }
 
       // Cek apakah masih ada slice dengan status 'in-progress' atau 'ready-for-dev' (mengabaikan baris komentar)
-      const hasPendingStory = content.split("\n").some((line) => {
+      const hasPendingStory = lines.some((line) => {
         const trimmed = line.trim();
         if (trimmed.startsWith("#")) return false;
         return /status:\s*["']?(ready-for-dev|in-progress)["']?/i.test(trimmed);
@@ -168,7 +415,7 @@ export function checkDevLoopContinuation(cwd: string = process.cwd()): StopResul
         return {
           continue: true,
           additionalContext:
-            "[OMP-IMPA Autonomous Loop] Masih terdapat slice berstatus `ready-for-dev` atau `in-progress` di `_ompimpa/status/feature-status.yaml`. Lanjutkan pengerjaan slice berikutnya hingga seluruh tes hijau.",
+            `[OMP-IMPA Autonomous Loop] Masih terdapat slice berstatus \`ready-for-dev\` atau \`in-progress\` di \`${artifactsDir}/status/feature-status.yaml\`. Lanjutkan pengerjaan slice berikutnya hingga seluruh tes hijau.`,
         };
       }
     }
@@ -178,15 +425,17 @@ export function checkDevLoopContinuation(cwd: string = process.cwd()): StopResul
 
   return undefined;
 }
-
 /**
  * Factory Hook / Extension OMP Default Export
  */
 export default function ompimpaGuard(pi: OmpEventBus) {
   // 1. Inisialisasi Sesi & TUI Status
   pi.on("session_start", async (_event: unknown, ctx: HookContext) => {
+    const cwd = ctx?.cwd || process.cwd();
+    const config = loadOmpimpaConfig(cwd);
     if (ctx?.hasUI && ctx.ui?.setStatus) {
-      ctx.ui.setStatus("ompimpa", "⚡ OMP-IMPA Active");
+      const modelStatus = config.models?.commit ? ` (commit:${config.models.commit})` : "";
+      ctx.ui.setStatus("ompimpa", `⚡ OMP-IMPA Active${modelStatus}`);
     }
   });
 
