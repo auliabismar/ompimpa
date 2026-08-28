@@ -37,10 +37,12 @@ enable_atdd = true             # Wajibkan tes merah Red-Phase sebelum koding
 quality_score_floor = 90       # Skor minimal kelulusan review (0-100)
 warnings_as_errors = true      # Enforce mix compile --warnings-as-errors
 max_dev_retries = 3            # Batas retry loop sebelum circuit breaker eskalasi ke manusia
-auto_macro_review_in_dev = true# Jalankan full Macro-Review 6-Subagent paralel di setiap akhir story
+auto_macro_review_in_dev = true# Jalankan review otomatis sebelum commit di akhir setiap story
 auto_triage_and_fix = true     # Triage otomatis temuan Blocker & Warning sebelum commit
 
 [quality.review]
+enable_spec_review = true        # Review Fungsional: Audit Source Code vs Acceptance Criteria PRD (Agus Salim)
+enable_tech_review = true        # Review Teknis: Audit Kepatuhan Teknis Elixir/Phoenix (Panel 6 Spesialis)
 parallel_reviewers = 6         # Panel 6 subagent paralel: IronLaw, Security, QA/Test, Compiler, Ecto/Ash, LiveView/Oban
 max_triage_fix_cycles = 2      # Batas siklus perbaikan otomatis sebelum eskalasi ke manusia
 # Target Non-Functional Requirements (NFR)

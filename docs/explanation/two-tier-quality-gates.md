@@ -46,7 +46,7 @@ OMP-IMPA memisahkan tanggung jawab pemeriksaan secara presisi pada setiap fase e
 [4. SELESAI 1 FITUR / PR]
        │
        ▼
-[TIER 3: MACRO-REVIEW & VERIFY] ──► 1. /ompimpa:review: Panel 6-Jalur (IronLaw, Security, QA/Test, Compiler, Ecto/Ash, LiveView/Oban)
+[TIER 3: DUAL-REVIEW & VERIFY] ──► 1. /ompimpa:review: Dual-Review (Spec Review Agus Salim + Panel 6 Spesialis)
                                    2. /ompimpa:verify: Full `mix test` + Credo Strict + Sobelow Security
 ```
 
@@ -78,13 +78,13 @@ OMP-IMPA memisahkan tanggung jawab pemeriksaan secara presisi pada setiap fase e
   3. Pemeriksaan format kode (`mix format --check-formatted`).
 * **Prinsip Utama**: **Sub-2-Detik**. Operasi `mix test` global **sengaja ditiadakan** di pre-commit agar proses commit tetap instan.
 
-### Tier 3 — Macro-Review & Full Verification Suite (`/ompimpa:verify`)
-* **Tempat**: Perintah eksplisit `/ompimpa:review` dan `/ompimpa:verify`.
-* **Waktu**: Di akhir implementasi fitur, sebelum merge branch, atau pada pipeline CI/CD.
+### Tier 3 — Dual-Review & Full Verification Suite (`/ompimpa:verify`)
+* **Tempat**: Perintah eksplisit `/ompimpa:review` dan `/ompimpa:verify` (atau otomatis di akhir story saat `auto_macro_review_in_dev = true`).
+* **Waktu**: Di akhir story/fitur, sebelum commit final, sebelum merge branch, atau pada pipeline CI/CD.
 * **Tanggung Jawab**:
-  1. Audit semantik mendalam oleh panel 6-jalur (Hj. Rasuna Said, Bagindo Azizchan, Tuanku Imam Bonjol, Compiler, Ecto/Ash, LiveView/Oban).
-  2. Eksekusi menyeluruh seluruh rangkaian tes proyek (`mix test`), static analysis Credo (`mix credo --strict`), dan security audit Sobelow (`mix sobelow --config --exit`).
-
+  1. **Spec Review (BMAD / BMM)**: Validasi diff terhadap Kriteria Penerimaan Gherkin di PRD, anti-scope-creep, dan deletion check (`ompimpa-prd` / `requirements-verifier`).
+  2. **Tech Review (phxagents)**: Audit semantik mendalam oleh panel 6-jalur (Hj. Rasuna Said, Bagindo Azizchan, Tuanku Imam Bonjol, Compiler, Ecto/Ash, LiveView/Oban).
+  3. Eksekusi menyeluruh seluruh rangkaian tes proyek (`mix test`), static analysis Credo (`mix credo --strict`), dan security audit Sobelow (`mix sobelow --config --exit`).
 ---
 
 ## 4. Matriks Perbandingan & Pencegahan Redundansi

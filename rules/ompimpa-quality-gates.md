@@ -21,3 +21,12 @@ Setiap perubahan kode, PR, atau rilis story wajib lolos arsitektur batas mutu be
 ## 4. Gerbang Dokumentasi Diátaxis (Documentation Gate)
 - Subagent `ompimpa-doc` (Mohammad Yamin):
   - Setiap Epic/Story yang selesai wajib memiliki pembaruan panduan Diátaxis di `docs/user/`, `docs/admin/`, atau `docs/dev/`.
+## 5. Gerbang Penegakan Review Terisolasi (Anti-Inline Review Invariant)
+- **DILARANG KERAS** melakukan evaluasi review secara *inline* di thread utama.
+- **WAJIB** mengeksekusi review melalui subagent paralel terisolasi (`task`) dengan pembagian peran terpisah:
+  1. `Blind Hunter`: Review tanpa membaca PRD/klaim untuk mendeteksi apa yang hilang secara objektif.
+  2. `Edge Case Hunter`: Penelusuran cabang boundary, deletion check, dan falsifikasi klaim author.
+  3. `Verification Gap Hunter`: Audit kelemahan asersi pengujian (*broken-verification* dan *false greens*).
+  4. `Acceptance Auditor`: Pencocokan ketat setiap skenario Gherkin di PRD vs implementasi nyata.
+  5. `Technical Compliance Panel`: Audit 26 Hukum Besi, keamanan, performa DB, dan lifecycle memori.
+- Thread utama bertindak sebagai pengumpul (*aggregator*) dan hakim triage independen.

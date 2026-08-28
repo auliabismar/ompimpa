@@ -29,19 +29,29 @@ Mengeksekusi siklus implementasi kode otonom berbasis state persisten di disk (`
 [4. KODING S/D HIJAU] ──► Menulis kode produksi hingga seluruh asersi tes berstatus PASS.
                           (Dilindungi Circuit Breaker: maks 3x retry sebelum eskalasi ke manusia).
                                 │
-[5. REVIEW & TRIAGE]  ──► 🛡️ Menjalankan Panel Macro-Review 6-Subagent Paralel:
-                          • 1. `ompimpa-ironlaw` (Hj. Rasuna Said): Audit 26 Hukum Besi Semantik
-                          • 2. `ompimpa-security` (Bagindo Azizchan): Audit Keamanan & OWASP
-                          • 3. `ompimpa-test` (Tuanku Imam Bonjol): Scorecard Mutu Pengujian (≥ 90)
-                          • 4. `ompimpa-verify`: Verifikasi Strict Compiler & Warnings-as-Errors
-                          • 5. `ompimpa-ecto` / `ash`: Anti-N+1, Ecto Pinning `^`, Fail-Closed Policies
-                          • 6. `ompimpa-liveview` / `oban`: Memory Assigns Hygiene, Streams, Oban Idempotency
-                          • Jika ada temuan P0/Blocker atau P1/Warning:
-                            1. Triage & filter temuan ke tugas perbaikan terfokus.
-                            2. Panggil spesialis untuk koding remediasi.
-                            3. Jalankan RE-REVIEW pada diff perbaikan.
-                          • Jika lolos / 0 Blocker: Lanjut ke commit.
-                                │
+[5. DUAL-REVIEW & TRIAGE]──► 🛡️ Berdasarkan `ompimpa.toml` (`auto_macro_review_in_dev = true`):
+                          ⚠️ **INVARIANT ANTI-INLINE**: Review WAJIB di-dispatch melalui subagent terisolasi via tool `task` (DILARANG evaluasi inline di thread utama demi mencegah bias konfirmasi).
+                          • A. REVIEW FUNGSIONAL / SPEC (`quality.review.enable_spec_review = true`):
+                            Subagent `ompimpa-prd` (H. Agus Salim) / `requirements-verifier`:
+                            1. Mengekstrak Acceptance Criteria Gherkin Story terkait dari `_ompimpa/prd/`.
+                            2. Memverifikasi diff kode terhadap setiap kriteria penerimaan (AC).
+                            3. Memeriksa anti-scope-creep (tidak ada fitur liar di luar PRD).
+                            4. Memeriksa deletion-check (tidak ada kontrak fungsional yang terhapus).
+                          • B. REVIEW TEKNIS / COMPLIANCE (`quality.review.enable_tech_review = true`):
+                            Panel 6-Subagent Spesialis Paralel:
+                            1. `ompimpa-ironlaw` (Hj. Rasuna Said): Audit 26 Hukum Besi Semantik
+                            2. `ompimpa-security` (Bagindo Azizchan): Audit Keamanan & OWASP
+                            3. `ompimpa-test` (Tuanku Imam Bonjol): Scorecard Mutu Pengujian (≥ 90)
+                            4. `ompimpa-verify`: Verifikasi Strict Compiler & Warnings-as-Errors
+                            5. `ompimpa-ecto` / `ash`: Anti-N+1, Ecto Pinning `^`, Fail-Closed Policies
+                            6. `ompimpa-liveview` / `oban`: Memory Assigns Hygiene, Streams, Oban Idempotency
+                          • C. OUTPUT MATRIKS KELULUSAN GANDA:
+                            Wajib menyajikan tabel kelulusan Spec Review dan Tech Review.
+                          • D. TRIAGE & REMEDIASI OTOMATIS (`auto_triage_and_fix = true`):
+                            Jika ada temuan P0 (Blocker) atau P1 (Warning):
+                            1. Otomatis triage temuan ke subagent spesialis terkait untuk perbaikan.
+                            2. Jalankan Re-Review pada diff perbaikan (dibatasi `max_triage_fix_cycles = 2`).
+                            3. Jika lolos / 0 Blocker: Lanjut ke commit.
 [6. GIT COMMIT & SYNC]──► Jika lolos Re-Review:
                           • Agen Commit (`smol`) membaca staged diff dan men-generate Semantic Commit Message:
                             Format: `<type>(<scope>): <short summary>` (misal: `feat(auth): implement passkey webauthn liveview`)

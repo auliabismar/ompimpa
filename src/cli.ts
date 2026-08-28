@@ -195,10 +195,12 @@ enable_atdd = true               # Enforce Red-Phase ATDD before code implementa
 quality_score_floor = 90         # Minimum test quality scorecard threshold (0-100)
 warnings_as_errors = true        # Enforce mix compile --warnings-as-errors
 max_dev_retries = 3              # Circuit breaker: escalate to human after 3 failed test iterations
-auto_macro_review_in_dev = true  # Run full 6-subagent parallel Macro-Review at the end of story execution
+auto_macro_review_in_dev = true  # Run automated review before commit at the end of story execution
 auto_triage_and_fix = true       # Automatically triage P0/P1 findings and remediate before final commit
 
 [quality.review]
+enable_spec_review = true        # Functional Review: Audit Source Code vs PRD Acceptance Criteria (Agus Salim)
+enable_tech_review = true        # Technical Review: Audit Elixir/Phoenix compliance (Panel of 6 Specialists)
 parallel_reviewers = 6           # Panel of 6 parallel subagents: IronLaw, Security, QA/Test, Compiler, Ecto/Ash, LiveView/Oban
 max_triage_fix_cycles = 2        # Maximum automated remediation cycles before human escalation
 

@@ -12,22 +12,28 @@ Jalankan perintah review pada branch Anda:
 /ompimpa:review
 ```
 
-### 6 Jalur Pemeriksaan Paralel (Multi-Subagent Panel):
+### Panel Review Ganda (Dual-Review Architecture):
 *(Catatan: Kesalahan sintaktis primitif seperti uang `:float` atau `String.to_atom` sudah otomatis dicegah di **Tier 0** oleh engine TTSR saat koding berlangsung).*
 
+#### A. Jalur Review Fungsional / Spesifikasi (BMAD / BMM)
+* **`ompimpa-prd` (H. Agus Salim)** & **`requirements-verifier`**:
+  1. **Acceptance Criteria Verification**: Memvalidasi diff kode terhadap kriteria Gherkin di PRD (`_ompimpa/prd/`).
+  2. **Anti-Scope-Creep Check**: Memastikan tidak ada implementasi fungsional di luar cakupan PRD/Story.
+  3. **Deletion Contract Check**: Memastikan refactoring tidak menghilangkan kontrak fungsional yang masih dibutuhkan.
+
+#### B. Jalur Kepatuhan Teknis (phxagents Specialist Panel)
 1. **Jalur Hukum Besi Semantik (`ompimpa-ironlaw` - Hj. Rasuna Said)**:
    Memindai seluruh diff git terhadap invariant arsitektur tingkat tinggi (otorisasi socket dinamis di setiap `handle_event/3`, supervisi proses di `application.ex`, dan relasi multi-berkas).
 2. **Jalur Keamanan Perimeter (`ompimpa-security` - Bagindo Azizchan)**:
    Memindai celah keamanan mendalam (CSRF tokens, otorisasi IDOR, perlindungan sesi, dan audit Hex dependencies).
 3. **Jalur Mutu Pengujian (`ompimpa-test` - Tuanku Imam Bonjol)**:
-   Menilai suite tes dengan scorecard 0–100 (wajib $\ge 90$) dan isolasi sandbox.
+   Menilai suite tes dengan scorecard 0–100 (wajib $\ge 90$), deteksi kelemahan asersi (*verification gaps*), dan isolasi sandbox.
 4. **Jalur Verifikasi Statis (`ompimpa-verify`)**:
    Menjalankan kompilasi strict (`mix compile --warnings-as-errors`) dan format check.
 5. **Jalur Database & Query (`ompimpa-ecto` / `ash`)**:
    Memindai potensi anti-pattern N+1 queries, pinning operator `^` pada query Ecto, dan fail-closed Ash authorization policies.
 6. **Jalur LiveView & Background Jobs (`ompimpa-liveview` / `oban`)**:
    Memeriksa memory hygiene socket assigns, Stream container pada dataset > 100 baris, dan idempotensi worker Oban.
-### Hasil Output:
 Jika lolos, laporan akan berstatus:
 ```text
 🏆 [OMP-IMPA REVIEW: PASSED]
