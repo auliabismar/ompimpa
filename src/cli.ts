@@ -750,33 +750,85 @@ async function handleDoctor(_flags: string[]) {
   }
 }
 
-async function handleVerify(_flags: string[]) {
+async function handleVerify(flags: string[]) {
   const targetDir = process.cwd();
   const tomlPath = path.join(targetDir, "ompimpa.toml");
-  let stepsConfig: string[] = [
-    "compile --warnings-as-errors",
-    "format --check-formatted",
-    "test",
-  ];
+  const fallbackTplPath = path.join(REPO_ROOT, "templates", "ompimpa.toml");
 
-  if (await fileExists(tomlPath)) {
-    const tomlContent = await fs.readFile(tomlPath, "utf-8");
-    const parsed = parseToml(tomlContent);
-    if (parsed.quality?.verify?.steps && parsed.quality.verify.steps.length > 0) {
-      stepsConfig = parsed.quality.verify.steps;
+  let tier1Steps: string[] = ["compile --warnings-as-errors", "format --check-formatted"];
+  let tier2Steps: string[] = ["test --stale"];
+  let tier3Steps: string[] = ["test", "credo --strict", "sobelow --strict --format json"];
+  let flatSteps: string[] | null = null;
+
+  const loadSteps = async (p: string) => {
+    try {
+      const content = await fs.readFile(p, "utf-8");
+      const parsed = parseToml(content);
+      const qv: any = (parsed as any).quality?.verify;
+      if (qv) {
+        if (qv.tier1?.steps?.length) tier1Steps = qv.tier1.steps;
+        if (qv.tier2?.steps?.length) tier2Steps = qv.tier2.steps;
+        if (qv.tier3?.steps?.length) tier3Steps = qv.tier3.steps;
+        if (qv.steps?.length) flatSteps = qv.steps;
+      }
+    } catch {}
+  };
+
+  // Try project ompimpa.toml first, fallback to templates
+  await loadSteps(tomlPath);
+  if (!flatSteps && !(await fileExists(tomlPath))) {
+    await loadSteps(fallbackTplPath);
+  }
+
+  const hasTiered = flags.includes("--tier1") || flags.includes("--tier2") || flags.includes("--tier3") || flags.includes("--all");
+  let tiers: Array<{ name: string; steps: string[] }> = [];
+
+  if (flags.includes("--tier1")) {
+    tiers = [{ name: "T1 (<2s)", steps: tier1Steps }];
+  } else if (flags.includes("--tier2")) {
+    tiers = [{ name: "T2 (<10s)", steps: tier2Steps }];
+  } else if (flags.includes("--tier3")) {
+    tiers = [{ name: "T3 (background)", steps: tier3Steps }];
+  } else if (flags.includes("--all")) {
+    tiers = [
+      { name: "T1 (<2s)", steps: tier1Steps },
+      { name: "T2 (<10s)", steps: tier2Steps },
+      { name: "T3 (background)", steps: tier3Steps },
+    ];
+  } else if (flatSteps && !tier1Steps.length && !tier2Steps.length) {
+    // legacy flat mode
+    tiers = [{ name: "Quality Gate", steps: flatSteps }];
+  } else {
+    // B-04 default: dev loop hanya T1+T2 (<12s), T3 background not blocking
+    tiers = [
+      { name: "T1 (<2s)", steps: tier1Steps },
+      { name: "T2 (<10s)", steps: tier2Steps },
+    ];
+    console.log(`\n🛡️ Tiered Verify — T1+T2 (<12s) blocking, T3 background (use --tier3 or --all for full)`);
+  }
+
+  console.log(`\n🛡️ Executing OMP-IMPA Strict Quality Gate in: ${targetDir}\n`);
+
+  for (const tier of tiers) {
+    console.log(`\n▶️ [${tier.name}] ${tier.steps.length} steps:`);
+    for (const stepStr of tier.steps) {
+      const step = parseVerifyStep(stepStr);
+      console.log(`  ▶️ [STEP] ${step.name} (\`${step.cmd} ${step.args.join(" ")}\`):`);
+      const res = await runCommand(step.cmd, step.args, targetDir);
+      if (res.code !== 0) {
+        console.error(`\n❌ Quality gate FAILED at ${tier.name} step: ${step.name}`);
+        // B-04 AC-2: Jika T1 gagal langsung REMEDIATE tanpa T2
+        if (tier.name.includes("T1")) {
+          console.error(`🚫 T1 failed — skip T2 (B-04 AC-2: langsung REMEDIATE tanpa T2)`);
+        }
+        process.exit(res.code);
+      }
     }
   }
 
-  console.log(`\n🛡️ Executing OMP-IMPA Strict Quality Gate (${stepsConfig.length} steps) in: ${targetDir}\n`);
-
-  for (const stepStr of stepsConfig) {
-    const step = parseVerifyStep(stepStr);
-    console.log(`\n▶️ [STEP] ${step.name} (\`${step.cmd} ${step.args.join(" ")}\`):`);
-    const res = await runCommand(step.cmd, step.args, targetDir);
-    if (res.code !== 0) {
-      console.error(`\n❌ Quality gate FAILED at step: ${step.name}`);
-      process.exit(res.code);
-    }
+  // If default mode (T1+T2), note T3 background
+  if (!hasTiered && tiers.length === 2) {
+    console.log(`\n💤 T3 background steps (not blocking): ${tier3Steps.join(", ")} — run \`ompimpa verify --tier3\` or \`--all\` for full audit`);
   }
 
   console.log("\n🏆 100% Quality Gate PASSED: All configured steps green!");

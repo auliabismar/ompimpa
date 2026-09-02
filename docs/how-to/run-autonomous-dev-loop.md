@@ -26,7 +26,7 @@ Untuk mengerjakan satu slice berikutnya yang siap dikerjakan:
    Berdasarkan konfigurasi `ompimpa.toml` (`auto_macro_review_in_dev = true`):
    - **A. Spec Review (`enable_spec_review = true`)**: Subagent `ompimpa-prd` (H. Agus Salim) / `requirements-verifier` memverifikasi kesesuaian diff kode terhadap Kriteria Penerimaan Gherkin di PRD, mencegah *scope creep*, dan memeriksa *deletion-check*.
    - **B. Tech Review (`enable_tech_review = true`)**: Panel 6-subagent spesialis memeriksa 26 Hukum Besi (`ompimpa-ironlaw`), keamanan (`ompimpa-security`), mutu tes TEA $\ge 90$ (`ompimpa-test`), kompilator strict (`ompimpa-verify`), database (`ompimpa-ecto`/`ash`), dan lifecycle memori (`ompimpa-liveview`/`oban`).
-   - **C. Triage & Remediasi Otomatis**: Jika ada temuan **P0 (Blocker)** atau **P1 (Warning)**, sistem memicu remediasi terfokus (maksimal `max_triage_fix_cycles = 2`) dan melakukan Re-Review sebelum diizinkan commit.
+   - **C. Triage & Remediasi Otomatis**: Jika ada temuan **P0 (Blocker)** atau **P1 (Warning)**, sistem memicu remediasi terfokus (maksimal `max_triage_fix_cycles = 3` — [v2] was 2, sinkron agyimpa 3) dan melakukan Re-Review sebelum diizinkan commit.
    - Temuan **P2 (Suggestion)** dicatat ke `_ompimpa/status/` tanpa memblokir penyelesaian story.
 5. **Semantic Git Commit & Status Sync (`smol` model)**:
    - Agen Commit bertenaga model **`smol`** menganalisis staged diff dan menghasilkan **Semantic Commit Message** standar:

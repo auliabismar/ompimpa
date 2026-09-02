@@ -22,8 +22,8 @@ auto_triage_and_fix = true       # Automatically triage P0/P1 findings and remed
 [quality.review]
 enable_spec_review = true        # Functional Review: Audit Source Code vs PRD Acceptance Criteria (Agus Salim)
 enable_tech_review = true        # Technical Review: Audit Elixir/Phoenix compliance (Panel of 6 Specialists)
-parallel_reviewers = 6           # Panel of 6 parallel subagents: IronLaw, Security, QA/Test, Compiler, Ecto/Ash, LiveView/Oban
-max_triage_fix_cycles = 2        # Maximum automated remediation cycles before human escalation
+parallel_reviewers = 6           # Panel of 6 parallel subagents: IronLaw, Security, QA/Test, Compiler, Ecto/Ash, LiveView/Oban (total 7 dengan spec, 10 dengan BMAD 4 lens)
+max_triage_fix_cycles = 3        # [v2 ADR-001] Maximum automated remediation cycles before human escalation (was 2, sinkron agyimpa 3)
 # Non-Functional Requirements (NFR) Targets
 [quality.nfr]
 target_p95_latency_ms = 50       # Target p95 response latency (ms) for PRD non-functional requirements

@@ -240,6 +240,21 @@ export function loadOmpimpaConfig(cwd: string = process.cwd()): OmpimpaConfig {
   return {};
 }
 /**
+ * B-01 INV-01: Validasi Review Isolation — runReview DILARANG inline, wajib dispatchIsolatedReview via task isolated:true
+ */
+export function checkReviewIsolation(code: string): { violation: boolean; reason?: string } {
+  const hasDirectPrewalk = /runPrewalkScan\s*\(/.test(code);
+  const hasDispatch = /dispatchIsolatedReview\s*\(/.test(code);
+  if (hasDirectPrewalk && !hasDispatch) {
+    return {
+      violation: true,
+      reason: "Review must be isolated via task — runReview must call dispatchIsolatedReview via task isolated:true (INV-01)",
+    };
+  }
+  return { violation: false };
+}
+
+/**
  * Memvalidasi apakah skor TEA scorecard memenuhi floor di ompimpa.toml.
  */
 export function validateScoreFloor(
@@ -378,8 +393,10 @@ export function compactTestOutput(
 
 /**
  * Logika pengecekan kelanjutan dev loop otomatis (session_stop).
+ * B-04: Tiered-aware — hanya T1+T2 blocking, T3 background
+ * B-06: Epic-aware — filter by epic jika diberikan
  */
-export function checkDevLoopContinuation(cwd: string = process.cwd()): StopResult | undefined {
+export function checkDevLoopContinuation(cwd: string = process.cwd(), epicFilter?: string): StopResult | undefined {
   const config = loadOmpimpaConfig(cwd);
   const artifactsDir = config.governance?.artifacts_dir || "_ompimpa";
   const statusYamlPath = path.join(cwd, artifactsDir, "status", "feature-status.yaml");
@@ -390,7 +407,7 @@ export function checkDevLoopContinuation(cwd: string = process.cwd()): StopResul
       const content = fs.readFileSync(statusYamlPath, "utf-8");
       const lines = content.split("\n");
 
-      // Cek apakah ada story yang melebihi batas retry (Circuit Breaker)
+      // B-05 Circuit Breaker 3: cek retries >=3
       for (const line of lines) {
         const retryMatch = line.match(/\bretries:\s*(\d+)/i);
         if (retryMatch) {
@@ -405,17 +422,64 @@ export function checkDevLoopContinuation(cwd: string = process.cwd()): StopResul
         }
       }
 
-      // Cek apakah masih ada slice dengan status 'in-progress' atau 'ready-for-dev' (mengabaikan baris komentar)
-      const hasPendingStory = lines.some((line) => {
-        const trimmed = line.trim();
-        if (trimmed.startsWith("#")) return false;
-        return /status:\s*["']?(ready-for-dev|in-progress)["']?/i.test(trimmed);
-      });
+      // B-06 Epic filter: jika epicFilter diberikan, hanya cek story dengan epic tersebut
+      let hasPendingStory = false;
+      if (epicFilter) {
+        // Parse feature-status.yaml epic-aware
+        let currentEpic: string | null = null;
+        let currentStatus: string | null = null;
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith("#")) continue;
+          const epicMatch = line.match(/^\s*epic:\s*["']?([A-Za-z0-9_-]+)["']?/);
+          if (epicMatch) currentEpic = epicMatch[1];
+          const statusMatch = line.match(/^\s*status:\s*["']?([a-zA-Z_-]+)["']?/);
+          if (statusMatch) currentStatus = statusMatch[1];
+          if (currentEpic && currentStatus && (currentStatus === "ready-for-dev" || currentStatus === "in-progress")) {
+            if (currentEpic === epicFilter) {
+              hasPendingStory = true;
+              break;
+            }
+          }
+          // Reset on new story id
+          if (/^\s*-\s*id:\s*/.test(line)) {
+            currentEpic = null;
+            currentStatus = null;
+          }
+        }
+        // Fallback: if parsing failed, fallback to generic check
+        if (!hasPendingStory) {
+          // Try generic but filter by epic string existence
+          hasPendingStory = lines.some((line) => {
+            const trimmed = line.trim();
+            if (trimmed.startsWith("#")) return false;
+            return /status:\s*["']?(ready-for-dev|in-progress)["']?/i.test(trimmed) && content.includes(`epic: ${epicFilter}`);
+          });
+          // Actually need more precise: check if any pending and epic match
+          // Simpler: if epicFilter is set but we didn't find precise pending, check generic pending for that epic via regex
+          if (hasPendingStory) {
+            // Verify pending story actually belongs to epicFilter by scanning blocks
+            const blocks = content.split(/-\s*id:/);
+            hasPendingStory = blocks.some((block) => {
+              return /status:\s*["']?(ready-for-dev|in-progress)["']?/i.test(block) && block.includes(`epic: ${epicFilter}`);
+            });
+          }
+        }
+      } else {
+        // Default: cek apakah masih ada slice dengan status 'in-progress' atau 'ready-for-dev' (mengabaikan baris komentar)
+        hasPendingStory = lines.some((line) => {
+          const trimmed = line.trim();
+          if (trimmed.startsWith("#")) return false;
+          return /status:\s*["']?(ready-for-dev|in-progress)["']?/i.test(trimmed);
+        });
+      }
+
       if (hasPendingStory) {
+        const epicInfo = epicFilter ? ` untuk epic ${epicFilter}` : "";
         return {
           continue: true,
           additionalContext:
-            `[OMP-IMPA Autonomous Loop] Masih terdapat slice berstatus \`ready-for-dev\` atau \`in-progress\` di \`${artifactsDir}/status/feature-status.yaml\`. Lanjutkan pengerjaan slice berikutnya hingga seluruh tes hijau.`,
+            `[OMP-IMPA Autonomous Loop] Masih terdapat slice berstatus \`ready-for-dev\` atau \`in-progress\`${epicInfo} di \`${artifactsDir}/status/feature-status.yaml\`. Lanjutkan pengerjaan slice berikutnya hingga seluruh tes hijau.`,
         };
       }
     }
@@ -425,6 +489,19 @@ export function checkDevLoopContinuation(cwd: string = process.cwd()): StopResul
 
   return undefined;
 }
+
+/**
+ * B-04 Tiered Verification helper — return tiered steps for verification
+ */
+export function getTieredVerifySteps(cwd: string = process.cwd()): { tier1: string[]; tier2: string[]; tier3: string[] } {
+  const config = loadOmpimpaConfig(cwd);
+  const qv: any = (config as any).quality?.verify;
+  const tier1 = qv?.tier1?.steps || ["compile --warnings-as-errors", "format --check-formatted"];
+  const tier2 = qv?.tier2?.steps || ["test --stale"];
+  const tier3 = qv?.tier3?.steps || ["test", "credo --strict", "sobelow --strict --format json"];
+  return { tier1, tier2, tier3 };
+}
+
 /**
  * Factory Hook / Extension OMP Default Export
  */

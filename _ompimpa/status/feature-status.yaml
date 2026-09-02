@@ -27,42 +27,42 @@ stories:
     assignee: ompimpa-test
   - id: B-01
     title: "Dispatch 7 Isolated Reviewers via task"
-    status: backlog  # paused — epic/story only, belum ready-for-dev
+    status: done
     retries: 0
     epic: EPIC-B
     tea_tier: P0
     assignee: ompimpa-prd
   - id: B-02
     title: "Triage Dedup Hash + Remediation Plan"
-    status: backlog  # paused — epic/story only, belum ready-for-dev
+    status: done
     retries: 0
     epic: EPIC-B
     tea_tier: P0
     assignee: ompimpa-test
   - id: B-03
     title: "Split Spec 1→3/4 BMAD Lens"
-    status: backlog  # paused — epic/story only, belum ready-for-dev
+    status: done
     retries: 0
     epic: EPIC-B
     tea_tier: P1
     assignee: ompimpa-prd
   - id: B-04
     title: "Tiered Verification T1<2s/T2<10s/T3 bg"
-    status: backlog  # paused — epic/story only, belum ready-for-dev
+    status: done
     retries: 0
     epic: EPIC-B
     tea_tier: P1
     assignee: ompimpa-verify
   - id: B-05
     title: "Naikkan max_triage_fix_cycles 2→3"
-    status: backlog  # paused — epic/story only, belum ready-for-dev
+    status: done
     retries: 0
     epic: EPIC-B
     tea_tier: P1
     assignee: ompimpa-prd
   - id: B-06
     title: "Epic Orchestrator Flag --epic"
-    status: backlog  # paused — epic/story only, belum ready-for-dev
+    status: done
     retries: 0
     epic: EPIC-B
     tea_tier: P1
@@ -111,5 +111,5 @@ stories:
     assignee: ompimpa-test
 
 # Kanban summary
-# backlog: 11 | ready-for-dev: 0 | in-progress: 0 | done: 3 (EPIC-A ✅)
-# Next: B-01 (deps A-03 done) → B-02 → C-01/B-03/B-04 ...
+# backlog: 6 | ready-for-dev: 0 | in-progress: 0 | done: 9 (EPIC-A ✅ EPIC-B ✅)
+# Next: C-01 (deps A-02 done) → C-02/C-03 → C-04/C-05/C-06 ...

@@ -52,6 +52,11 @@ Mengaudit suite pengujian berdasarkan 5 pilar (masing-masing 20 poin):
 
 *Batas Kelulusan: Skor minimal $\ge 90$.*
 
+## B-01 Isolated Review Protocol
+- Berjalan via `task isolated:true` sebagai `ompimpa-test` — tulis `_ompimpa/review/<story>-ompimpa-test.json`.
+- Audit mutu pengujian TEA, anti-mocking, sandbox isolation, Scorecard 0–100; jika clean tulis `[]`.
+- Missing reviewer → P1 High; dedup hash `file:line:ruleId` keep Critical via `src/triage.ts`.
+
 ## Output Deliverables
 1. **Matriks Desain Pengujian**: Tabel skenario uji P1-P4 dari Acceptance Criteria PRD.
 2. **File Tes Red-Phase**: Berkas pengujian di `test/my_app_web/live/` atau `test/my_app/`.

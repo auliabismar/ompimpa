@@ -50,7 +50,7 @@ Mengeksekusi siklus implementasi kode otonom berbasis state persisten di disk (`
                           • D. TRIAGE & REMEDIASI OTOMATIS (`auto_triage_and_fix = true`):
                             Jika ada temuan P0 (Blocker) atau P1 (Warning):
                             1. Otomatis triage temuan ke subagent spesialis terkait untuk perbaikan.
-                            2. Jalankan Re-Review pada diff perbaikan (dibatasi `max_triage_fix_cycles = 2`).
+                            2. Jalankan Re-Review pada diff perbaikan (dibatasi `max_triage_fix_cycles = 3` — [v2] was 2, sinkron agyimpa 3).
                             3. Jika lolos / 0 Blocker: Lanjut ke commit.
 [6. GIT COMMIT & SYNC]──► Jika lolos Re-Review:
                           • Agen Commit (`smol`) membaca staged diff dan men-generate Semantic Commit Message:
