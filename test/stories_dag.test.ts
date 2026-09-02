@@ -1,6 +1,7 @@
 import { describe, it, expect } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import * as os from "node:os";
 import { spawn } from "node:child_process";
 import {
   parseStoriesYaml,
@@ -13,7 +14,8 @@ const REPO_ROOT = path.resolve(import.meta.dir, "..");
 
 async function runCli(args: string[], cwd: string = REPO_ROOT): Promise<{ code: number; stdout: string; stderr: string }> {
   return new Promise((resolve) => {
-    const proc = spawn("bun", ["run", "src/cli.ts", ...args], { cwd, stdio: "pipe" });
+    const cliPath = path.join(REPO_ROOT, "src/cli.ts");
+    const proc = spawn("bun", ["run", cliPath, ...args], { cwd, stdio: "pipe" });
     let stdout = "";
     let stderr = "";
     proc.stdout?.on("data", (d) => (stdout += d.toString()));
@@ -73,21 +75,37 @@ describe("A-02 Stories YAML DAG Topologis + Kill Criteria", () => {
   });
 
   it("AC-A02-2: Story A-02 depends_on [A-01] dan A-01 belum done → CLI blok", async () => {
-    // Create temp status with A-01 not done
     const storiesContent = await fs.readFile(path.join(REPO_ROOT, "_ompimpa", "stories.yaml"), "utf-8");
     const stories = parseStoriesYaml(storiesContent);
-    const statusContent = await fs.readFile(path.join(REPO_ROOT, "_ompimpa", "status", "feature-status.yaml"), "utf-8");
-    const { doneIds } = parseFeatureStatusYaml(statusContent);
-    // Ensure A-01 is not in done (current feature-status has backlog)
-    expect(doneIds.has("A-01")).toBeFalse();
+    // Synthetic: A-01 not done (empty done set)
+    const doneIds = new Set<string>();
     const blocked = getBlockedStory("A-02", stories, doneIds);
     expect(blocked).toBe("A-01");
-
-    // Also test via CLI spawn
-    const res = await runCli(["dev", "--story", "A-02"]);
+    // When A-01 done, not blocked
+    const doneIds2 = new Set<string>(["A-01"]);
+    expect(getBlockedStory("A-02", stories, doneIds2)).toBeNull();
+    // Test via CLI spawn with temp workspace where A-01 is backlog (synthesize)
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "ompimpa-dag-test-"));
+    const tmpOmpimpa = path.join(tmp, "_ompimpa");
+    const tmpStatus = path.join(tmpOmpimpa, "status");
+    await fs.mkdir(tmpStatus, { recursive: true });
+    await fs.writeFile(path.join(tmpOmpimpa, "stories.yaml"), storiesContent, "utf-8");
+    const backlogStatus = `stories:
+  - id: A-01
+    status: backlog
+    retries: 0
+    epic: EPIC-A
+  - id: A-02
+    status: backlog
+    retries: 0
+    epic: EPIC-A
+`;
+    await fs.writeFile(path.join(tmpStatus, "feature-status.yaml"), backlogStatus, "utf-8");
+    const res = await runCli(["dev", "--story", "A-02"], tmp);
     expect(res.code).toBe(1);
     expect(res.stdout + res.stderr).toContain("Blocked");
     expect(res.stdout + res.stderr).toContain("A-01");
+    await fs.rm(tmp, { recursive: true, force: true });
   });
 
   it("AC-A02-2: CLI epic filter respects DAG", async () => {
