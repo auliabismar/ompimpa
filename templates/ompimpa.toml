@@ -13,29 +13,42 @@ artifacts_dir = "_ompimpa"       # Direktori penyimpanan artefak internal PRD, A
 
 [quality]
 enable_atdd = true               # Wajibkan tes merah Red-Phase sebelum koding
-quality_score_floor = 90         # Batas skor review minimal kelulusan (0-100)
+quality_score_floor = 100        # [v2 ADR-001] Skor mutlak 100/100 (port agyimpa 35-Row: -30/-15/-5/-2), PASS hanya 100 (was 90)
+scoring_version = "v2"           # [v2 ADR-001] v1=legacy 90/-25/-10/-3, v2=deterministik 100/-30/-15/-5/-2 + dedup hash
 warnings_as_errors = true        # mix compile --warnings-as-errors
-max_dev_retries = 3              # Circuit breaker: eskalasi ke manusia jika 3x gagal tes beruntun
-# Konfigurasi Closed-Loop Dual-Review & Triage di Sesi Dev:
+max_dev_retries = 3              # Circuit breaker OTP: eskalasi ke manusia jika 3x gagal tes beruntun (sinkron agyimpa max_retries_per_story=3)
+# Konfigurasi Closed-Loop Dual-Review & Triage di Sesi Dev (ADR-001):
 auto_macro_review_in_dev = true  # Jalankan review otomatis sebelum commit di akhir setiap story
 auto_triage_and_fix = true       # Otomatis triage temuan P0/P1 dan perbaiki sebelum commit final
 
 [quality.review]
-enable_spec_review = true        # Review Fungsional: Audit Source Code vs Acceptance Criteria PRD (Agus Salim)
+enable_spec_review = true        # Review Fungsional: Audit Source Code vs AC Gherkin (Agus Salim) — akan di-split 3/4 lens di B-03
 enable_tech_review = true        # Review Teknis: Audit Kepatuhan Teknis Elixir/Phoenix (Panel 6 Spesialis)
-parallel_reviewers = 6           # Panel 6 subagent paralel: IronLaw, Security, QA/Test, Compiler, Ecto/Ash, LiveView/Oban
-max_triage_fix_cycles = 2        # Batas siklus perbaikan otomatis sebelum eskalasi ke manusia
+parallel_reviewers = 6           # Panel 6 subagent paralel: IronLaw, Security, QA/Test, Compiler, Ecto/Ash, LiveView/Oban (total 7 dengan spec)
+max_triage_fix_cycles = 3        # [v2 ADR-001] Batas siklus perbaikan otomatis sebelum eskalasi (was 2, sinkron agyimpa 3)
+scoring_weights = { Critical = 30, High = 15, Medium = 5, Low = 2 } # [v2] port agyimpa criteria_registry_35.json
+allow_p2_nits = false            # [v2] P2 Low tetap BLOCK (was allow), sinkron agyimpa policy.toml allow_p2_nits=false
 # Target Non-Functional Requirements (NFR)
 [quality.nfr]
 target_p95_latency_ms = 50       # Target latensi respons p95 (ms) pada naskah PRD
 
-# Langkah-Langkah Verifikasi Otomatis
+# Kill criteria per story (A-02) — dirujuk dari _ompimpa/stories.yaml kill_criteria
+[stories]
+kill_criteria_cache = "_ompimpa/.cache/dag.json" # Jika DAG check >500ms di 100 story → cache
+
+# Langkah-Langkah Verifikasi Otomatis — [v2 ADR-001] Tiered (port agyimpa loop_runner.py)
 [quality.verify]
 steps = [
   "compile --warnings-as-errors",
   "format --check-formatted",
   "test"
 ]
+[quality.verify.tier1] # Inner Loop <2s — blocking per story
+steps = ["compile --warnings-as-errors", "format --check-formatted"]
+[quality.verify.tier2] # Per-Story Gate <10s — blocking per story
+steps = ["test --stale"] # + 7 reviewers + triage 100/100 (B-01/B-02)
+[quality.verify.tier3] # Background Audit — non-blocking
+steps = ["test", "credo --strict", "sobelow --strict --format json"]
 
 # ==========================================
 # Manajemen Sumber Daya Mesin & Konkurensi

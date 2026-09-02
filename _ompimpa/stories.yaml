@@ -1,0 +1,488 @@
+# Daftar User Stories Terurut Topologis — Panen agyimpa → ompimpa
+# Dihasilkan dari ADR-001 & BALAIRUNG-20260902-panen-agyimpa-review-sync.md
+# Generator: H. Agus Salim (ompimpa-prd) — MADR 3.0+
+# Scoring: v2 — 35-Row Registry, 100/100 PASS, dedup hash file:line:ruleId
+# Isolation: task isolated:true, worktree ~/.omp/wt/
+# Tier: T1 <2s (compile+format), T2 <10s (test --stale + review), T3 background (full+credo+sobelow)
+
+epics:
+  - id: EPIC-A
+    title: "Governance Spine — Fondasi Deterministik"
+    description: "Menegakkan 26 Laws 1:1, DAG stories, dan registry 35 baris sebagai single source of truth scoring."
+  - id: EPIC-B
+    title: "Isolated Review & Triage — Inti Mutu Closed-Loop"
+    description: "Mengubah review inline→7→10 isolated, dedup hash, tiered verify, dan circuit breaker 3."
+  - id: EPIC-C
+    title: "Knowledge & DX — Akselerator Institusional"
+    description: "Graph blast-radius, deferred+sweep, pitfalls, wizard, docs generator, inspeksi 4-pilar."
+
+stories:
+  - id: A-01
+    epic: EPIC-A
+    title: "Pecah 26 Iron Laws Agregat → 26 File 1:1 TTSR per-Law"
+    description: |
+      Saat ini rules/elixir-iron-laws.md agregat 6.3KB + 15 rules/elixir-*.md tidak 1:1 dengan 26 Laws.
+      Story ini memecah menjadi 26 file terpisah rules/01-no-float-money.md … rules/26-pure-code-comments.md,
+      sinkron dengan .agents/rules/iron-laws/01..26.md agyimpa, agar TTSR inject per-law & reviewer audit per-hash.
+    tea_tier: "P0"
+    priority: "P0"
+    depends_on: []
+    target_files:
+      - "rules/01-no-float-money.md"
+      - "rules/02-no-disconnected-mount-queries.md"
+      - "rules/03-mandatory-streams.md"
+      - "rules/04-no-raw-sql-interpolation.md"
+      - "rules/05-pubsub-check-connected.md"
+      - "rules/06-explicit-changeset-error-handling.md"
+      - "rules/07-no-assign-new-for-dynamic-data.md"
+      - "rules/08-check-changeset-errors-before-form-debug.md"
+      - "rules/09-separate-has-many-use-join-belongs-to.md"
+      - "rules/10-no-implicit-cross-join.md"
+      - "rules/11-dedup-shared-data-before-cast-assoc.md"
+      - "rules/12-hidden-inputs-for-embedded-schemas.md"
+      - "rules/13-oban-jobs-idempotent-unique.md"
+      - "rules/14-oban-string-keys-args.md"
+      - "rules/15-no-structs-in-oban-args.md"
+      - "rules/16-oban-smart-engine-snooze-guard.md"
+      - "rules/17-no-string-to-atom-user-input.md"
+      - "rules/18-mandatory-auth-handle-event.md"
+      - "rules/19-no-raw-dynamic-content.md"
+      - "rules/20-otp-process-spawning-justification.md"
+      - "rules/21-supervised-long-lived-processes.md"
+      - "rules/22-external-resource-compile-time.md"
+      - "rules/23-facade-third-party-apis.md"
+      - "rules/24-mix-tasks-minimal-app-start.md"
+      - "rules/25-capture-locale-before-spawning.md"
+      - "rules/26-pure-code-comments-and-verification.md"
+      - "rules/elixir-iron-laws.md # legacy, akan di-deprecate setelah 26 file stabil"
+      - "src/prewalk.ts"
+      - "test/ttsr_rules.test.ts"
+      - "test/prewalk_and_reviewer.test.ts"
+    ac:
+      - id: AC-A01-1
+        given: "rules/ berisi 26 file 01..26 terpisah sinkron dengan agyimpa 01..26"
+        when: "bun test test/ttsr_rules.test.ts dijalankan"
+        then: "loadPrewalkRules() load 26 rules, tiap ruleId 1:1 dengan Iron Law, tidak ada duplikat"
+      - id: AC-A01-2
+        given: "kode mengandung field :balance, :float"
+        when: "TTSR stream mengintersepsi write_file/edit_file"
+        then: "rule 01-no-float-money abort dengan remediation 'gunakan :decimal atau integer cents' di line tepat"
+      - id: AC-A01-3
+        given: "legacy rules/elixir-iron-laws.md masih ada"
+        when: "A-01 selesai"
+        then: "file legacy ditandai deprecated (header > DEPRECATED: use rules/01..26) tidak dihapus dulu untuk backward compat"
+    kill_criteria:
+      - "Jika inject 26 file >8k token → revert ke lazy-load per-law (load on-demand by ruleId)"
+    estimate: "S"
+    scoring_impact: "TEA-17, TEA-08, TEA-12, TEA-22"
+
+  - id: A-02
+    epic: EPIC-A
+    title: "Stories YAML DAG Topologis + Kill Criteria Eksplisit"
+    description: |
+      Buat stories.yaml sebagai DAG terurut topologis bebas circular, port dari agyimpa _bmad-output/planning-artifacts/stories.yaml
+      (depends_on[] + tea_tier + target_files + ac_keys), plus kill_criteria per story.
+      Validasi circular via prewalk (mix xref atau graph traversal) dan simpan feature-status.yaml untuk dev loop.
+    tea_tier: "P0"
+    priority: "P0"
+    depends_on: ["A-01"]
+    target_files:
+      - "_ompimpa/stories.yaml # canonical"
+      - "_ompimpa/status/feature-status.yaml # dev loop state"
+      - "_ompimpa/status/stories.yaml # symlink/compat"
+      - "templates/ompimpa.toml # tambah [stories] kill_criteria"
+      - "src/prewalk.ts # tambah checkCircularDAG()"
+      - "src/cli.ts # handleInit tulis stories.yaml jika belum ada"
+      - "test/stories_dag.test.ts # baru"
+    ac:
+      - id: AC-A02-1
+        given: "stories.yaml berisi 14 story A-01..C-06 dengan depends_on DAG"
+        when: "bun test stories_dag: checkCircularDAG() dijalankan"
+        then: "tidak ada siklus, topological sort = A-01→A-02→A-03→B-01→B-02→C-01→B-03→B-04→B-05→C-02→C-03→C-04→C-05→C-06"
+      - id: AC-A02-2
+        given: "story A-02 depends_on [A-01] dan A-01 belum done"
+        when: "ompimpa dev --story A-02 dipanggil"
+        then: "CLI blok dengan pesan 'Blocked: dependency A-01 not done' (exit 1)"
+      - id: AC-A02-3
+        given: "kill_criteria terdefinisi di stories.yaml per story"
+        when: "docs PRD dirender"
+        then: "kill_criteria tampil di _ompimpa/prd/ dan di LSP hover"
+    kill_criteria:
+      - "Jika DAG check >500ms di 100 story → cache di _ompimpa/.cache/dag.json"
+    estimate: "S"
+    scoring_impact: "TEA-16, TEA-15"
+
+  - id: A-03
+    epic: EPIC-A
+    title: "Port 35-Row Criteria Registry 100/100 — Single Source of Truth Scoring"
+    description: |
+      Port .agents/data/criteria_registry_35.json agyimpa (5 dimensi, 35 kriteria, penalti -30/-15/-5/-2)
+      ke _ompimpa/criteria_registry_35.json + _ompimpa/data/criteria_registry_35.json dengan mapping
+      reviewer_sources → ompimpa_panel (ompimpa-ironlaw, security, test, verify, ash, liveview, prd).
+      Ubah scoring di src/reviewer.ts:calculateScorecard() dari floor 90 (-25/-10/-3) ke v2 100 (-30/-15/-5/-2), PASS hanya 100.
+    tea_tier: "P1"
+    priority: "P0"
+    depends_on: ["A-01"]
+    target_files:
+      - "_ompimpa/criteria_registry_35.json # canonical, sudah ter-port"
+      - "_ompimpa/data/criteria_registry_35.json # compat"
+      - "src/reviewer.ts # calculateScorecard v2"
+      - "src/triage.ts # baru, dedup + scoring"
+      - "test/prewalk_and_reviewer.test.ts # update floor 100"
+      - "test/triage.test.ts # baru, port dari test_triage.py 21 tests"
+      - "templates/ompimpa.toml # quality_score_floor 90→100, scoring_version=v2"
+    ac:
+      - id: AC-A03-1
+        given: "_ompimpa/criteria_registry_35.json berisi 35 kriteria TEA-01..35"
+        when: "src/triage.ts loadRegistry() dipanggil"
+        then: "35 entries valid, tiap id unik, penalty sesuai registry, ompimpa_panel ter-mapping"
+      - id: AC-A03-2
+        given: "1 Critical (-30) + 1 High (-15)"
+        when: "calculateScorecard() v2 dijalankan"
+        then: "score = 55, verdict REMEDIATE, P0=1 P1=1"
+      - id: AC-A03-3
+        given: "0 temuan"
+        when: "calculateScorecard() v2 dijalankan"
+        then: "score 100/100 PASS, allow_p2_nits=false tetap BLOCK jika ada Low"
+    kill_criteria:
+      - "Jika floor 100 bikin story lama yang lulus 90 jadi BLOCKED → fallback scoring_version=v1 via flag"
+    estimate: "M"
+    scoring_impact: "TEA-29, TEA-30, ADR-001 INV-03"
+
+  - id: B-01
+    epic: EPIC-B
+    title: "Dispatch 7 Isolated Reviewers via task isolated:true (DUAL-REVIEW)"
+    description: |
+      Ubah src/reviewer.ts:runReview() dari inline runPrewalkScan() menjadi dispatchIsolatedReview(panel)
+      via OMP task isolated:true — 7 subagent: 1 spec (ompimpa-prd H. Agus Salim) + 6 tech
+      (ironlaw Rasuna Said, security Azizchan, test Imam Bonjol, verify, ash/ecto, liveview/oban).
+      Tiap reviewer tulis _ompimpa/review/<story>-<reviewer>.json (severity/file/line/rule_violation/recommendation).
+      Aggregator tunggu 7 JSON baru lanjut triage. Enforce INV-01 Anti-Inline.
+    tea_tier: "P0"
+    priority: "P0"
+    depends_on: ["A-03"]
+    target_files:
+      - "src/reviewer.ts # dispatchIsolatedReview()"
+      - "src/triage.ts # aggregateReviews()"
+      - "_ompimpa/review/ # output dir"
+      - "agents/ompimpa-prd.md # spec reviewer prompt"
+      - "agents/ompimpa-ironlaw.md # tech"
+      - "agents/ompimpa-security.md"
+      - "agents/ompimpa-test.md"
+      - "hooks/ompimpa-guard.ts # guard review isolation"
+      - "test/reviewer_isolated.test.ts # baru"
+    ac:
+      - id: AC-B01-1
+        given: "story in-progress dan panel 7 aktif"
+        when: "dispatchIsolatedReview() dipanggil"
+        then: "7 task isolated:true ter-spawn, tiap tulis JSON valid {severity,file,line,rule_violation,recommendation} atau []"
+      - id: AC-B01-2
+        given: "1 reviewer crash/tidak tulis JSON"
+        when: "aggregateReviews() timeout 60s"
+        then: "triage catat P1 High 'reviewer missing' bukan crash, lanjut dedup yang ada"
+      - id: AC-B01-3
+        given: "runReview() dipanggil tanpa dispatch"
+        when: "prewalk scan detect INV-01 violation"
+        then: "P0 Blocker 'Review must be isolated via task'"
+    kill_criteria:
+      - "Jika 7 task >12s (T1+T2) → fallback parallel_reviewers=4 via config"
+    estimate: "M"
+    scoring_impact: "TEA-01, TEA-29, ADR-001 INV-01"
+
+  - id: B-02
+    epic: EPIC-B
+    title: "Triage Dedup Hash file:line:ruleId + Remediation Plan P0→P1→P2"
+    description: |
+      Port triage_collector.py 29KB agyimpa ke src/triage.ts TS native:
+      dedup per file:line:ruleId keep severity tertinggi (Critical>High>Medium>Low),
+      mapping ke 35-Row registry, scoring 100, sorted P0→P1→P2, verdict PASS/REMEDIATE,
+      remediation plan actionable. Port test_triage.py 21 tests → bun:test.
+    tea_tier: "P0"
+    priority: "P0"
+    depends_on: ["B-01"]
+    target_files:
+      - "src/triage.ts # deduplicateFindings(), calculateScore(), remediationPlan()"
+      - "_ompimpa/criteria_registry_35.json # lookup penalty"
+      - "test/triage.test.ts # baru, 21 tests port"
+      - "src/reviewer.ts # integrasi triage"
+    ac:
+      - id: AC-B02-1
+        given: "3 reviewer lapor lib/foo.ex:42 rule IL-01 sama (Sobelow+Adversarial+IronLaw)"
+        when: "deduplicateFindings() dijalankan"
+        then: "1 entitas P0 Critical, merged_sources=[3], penalty 1× -30 bukan -90"
+      - id: AC-B02-2
+        given: "temuan beda rule di baris sama (IL-01 vs IL-04)"
+        when: "deduplicateFindings() dijalankan"
+        then: "2 entitas terpisah (tidak di-merge) — clustering by ruleId"
+      - id: AC-B02-3
+        given: "file-level finding line=null"
+        when: "dedup dijalankan"
+        then: "didukung, kunci file:ruleId tanpa line"
+      - id: AC-B02-4
+        given: "1 Critical + 1 High + 1 Medium"
+        when: "calculateScore() v2"
+        then: "score 50 (100-30-15-5), verdict REMEDIATE, remediationPlan sorted P0→P1→P2"
+    kill_criteria:
+      - "Jika dedup salah merge beda kategori → fix clustering by category+ruleId"
+    estimate: "M"
+    scoring_impact: "TEA-29, ADR-001 INV-02"
+
+  - id: B-03
+    epic: EPIC-B
+    title: "Split Spec Review 1→3/4 BMAD Lens (Adversarial/Gap/Structural)"
+    description: |
+      Pecah ompimpa-prd (1 Agus Salim) menjadi 3–4 sub-reviewer BMAD isolated:
+      bmad_adversarial (Tan Malaka edge/crash/race), bmad_gap_verifier (coverage AC 100%),
+      bmad_structural (Clean Spine, boundary), + ke-4 BMAD terbaru jika upstream 4.
+      Sinkron dengan agyimpa 3 BMAD dan upstream 4-worker.
+    tea_tier: "P1"
+    priority: "P1"
+    depends_on: ["B-01"]
+    target_files:
+      - "src/reviewer.ts # buildReviewPanel split spec"
+      - "agents/ompimpa-prd.md # pecah prompt 3 lens"
+      - "skills/bmm-product/SKILL.md # update ADR template 4 lens"
+      - "test/reviewer_isolated.test.ts"
+    ac:
+      - id: AC-B03-1
+        given: "enable_spec_review=true dan upstream BMAD 4"
+        when: "buildReviewPanel() dipanggil"
+        then: "panel spec = 4 (adversarial, gap, structural, +4th), total panel = 4+6=10"
+      - id: AC-B03-2
+        given: "story AC-1.1, AC-1.2"
+        when: "gap_verifier jalan"
+        then: "JSON gap_verifier cek AC traceability TEA-01, miss 1 AC → High P1"
+    kill_criteria:
+      - "Jika 10 reviewers >15s → config parallel_reviewers=6 fallback, spec lens tetap 3"
+    estimate: "M"
+    scoring_impact: "TEA-01, TEA-07, TEA-15"
+
+  - id: B-04
+    epic: EPIC-B
+    title: "Tiered Verification T1<2s / T2<10s / T3 Background"
+    description: |
+      Pecah quality.verify.steps campur menjadi tiered:
+      tier1=["compile --warnings-as-errors","format --check-formatted"] <2s,
+      tier2=["test --stale"] <10s + 9 reviewers + triage,
+      tier3=["test","credo --strict","sobelow --strict --format json"] background.
+      Dev loop hanya T1+T2, T3 di /verify atau session_stop background.
+    tea_tier: "P1"
+    priority: "P1"
+    depends_on: ["A-02"]
+    target_files:
+      - "templates/ompimpa.toml # [quality.verify] tier1/tier2/tier3"
+      - "src/cli.ts # handleVerify tiered"
+      - "hooks/ompimpa-guard.ts # session_stop tiered"
+      - "docs/reference/configuration-toml.md"
+    ac:
+      - id: AC-B04-1
+        given: "ompimpa.toml tiered terdefinisi"
+        when: "ompimpa dev --story B-04 dijalankan"
+        then: "hanya T1+T2 dieksekusi <12s, T3 tidak blok inner loop"
+      - id: AC-B04-2
+        given: "T1 gagal (compile warning)"
+        when: "loop jalan"
+        then: "langsung REMEDIATE tanpa T2 (hemat 10s)"
+    kill_criteria:
+      - "Jika T1+T2 >12s di laptop i5-8250U → cache compile atau skip T2 stale"
+    estimate: "S"
+    scoring_impact: "TEA-26, ADR-001 INV-05"
+
+  - id: B-05
+    epic: EPIC-B
+    title: "Naikkan max_triage_fix_cycles 2→3 Sinkron Circuit Breaker 3"
+    description: |
+      Samakan max_triage_fix_cycles 2→3 agar konsisten dengan max_dev_retries=3 dan agyimpa max_retries_per_story=3.
+      Juga sinkron dengan loop_runner.py agyimpa (3 retries OTP).
+    tea_tier: "P1"
+    priority: "P1"
+    depends_on: ["B-02"]
+    target_files:
+      - "templates/ompimpa.toml # max_triage_fix_cycles=3"
+      - "hooks/ompimpa-guard.ts # checkDevLoopContinuation retries>=3"
+      - "src/reviewer.ts # triage loop"
+    ac:
+      - id: AC-B05-1
+        given: "max_triage_fix_cycles=3 dan 3× REMEDIATE"
+        when: "retries 3 tercapai"
+        then: "BLOCK + eskalasi 'Circuit Breaker tripped' ke manusia, tidak auto-commit"
+    kill_criteria: []
+    estimate: "S"
+    scoring_impact: "ADR-001 INV-05"
+
+  - id: B-06
+    epic: EPIC-B
+    title: "Epic Orchestrator Flag --epic (Dev per Epic, Review per Story)"
+    description: |
+      Tambah flag --epic di src/cli.ts handleDev: filter stories.yaml by epic==EPIC-A/B/C + topo-sort DAG,
+      lalu loop sekuensial per story dengan review 7→10 isolated + triage dedup + scoring 100 per story.
+      Sinkron dengan bmad-loop run --epic dan ADR-001 Addendum INV-07 (dilarang review monolit per epic).
+    tea_tier: "P1"
+    priority: "P1"
+    depends_on: ["B-04"]
+    target_files:
+      - "src/cli.ts # handleDev --epic filter"
+      - "hooks/ompimpa-guard.ts # checkDevLoopContinuation epic filter"
+      - "test/cli_epic.test.ts # baru"
+      - "_ompimpa/stories.yaml # epic grouping"
+    ac:
+      - id: AC-B06-1
+        given: "stories.yaml epic EPIC-A berisi A-01,A-02,A-03"
+        when: "ompimpa dev --epic EPIC-A --auto dijalankan"
+        then: "loop sekuensial A-01→A-02→A-03 tiap story 10 review isolated, bukan 1 diff epic"
+      - id: AC-B06-2
+        given: "B-01 REMEDIATE di epic EPIC-B"
+        when: "epic EPIC-B jalan"
+        then: "B-02 tidak jalan sebelum B-01 PASS 100 (depends_on enforce)"
+    kill_criteria: []
+    estimate: "S"
+    scoring_impact: "ADR-001 INV-07"
+
+  - id: C-01
+    epic: EPIC-C
+    title: "Graphify Blast-Radius via mix xref + LSP"
+    description: |
+      Port graphify_engine.py 57KB agyimpa ke src/graphify.ts TS native:
+      mix xref graph --format json + lsp references → _ompimpa/graph.json + graph.html.
+      Blast-radius: ubah lib/accounts.ex → list live/*.ex terdampak.
+    tea_tier: "P0"
+    priority: "P0"
+    depends_on: ["A-02"]
+    target_files:
+      - "src/graphify.ts # baru"
+      - "src/prewalk.ts # integrasi xref"
+      - "_ompimpa/graph.json # output"
+      - "_ompimpa/graph.html # visual"
+      - "test/graphify.test.ts # baru"
+      - "commands/graphify.md # baru (opsional)"
+    ac:
+      - id: AC-C01-1
+        given: "lib/accounts.ex diubah"
+        when: "ompimpa graphify dijalankan"
+        then: "_ompimpa/graph.json list blast-radius lib/*_web/live/* terdampak, <2s di 500 file"
+      - id: AC-C01-2
+        given: "graph.json ada"
+        when: "review jalan"
+        then: "reviewer pakai graph untuk TEA-16 circular & TEA-15 boundary"
+    kill_criteria:
+      - "Jika xref >2s → fallback lsp references lazy per file"
+    estimate: "M"
+    scoring_impact: "TEA-15, TEA-16"
+
+  - id: C-02
+    epic: EPIC-C
+    title: "Deferred-Work + ompimpa sweep (Worktree OMP Native)"
+    description: |
+      Port deferred-work.md + bmad-loop sweep agyimpa ke _ompimpa/deferred.md + src/sweep.ts:
+      antrian P2 nit / techdebt yang tidak diblok P0, sweep promosi ke ready-for-dev via worktree.
+    tea_tier: "P2"
+    priority: "P1"
+    depends_on: ["B-02"]
+    target_files:
+      - "_ompimpa/deferred.md # antrian"
+      - "src/sweep.ts # baru"
+      - "src/cli.ts # ompimpa sweep command"
+      - "_ompimpa/status/feature-status.yaml # update status"
+    ac:
+      - id: AC-C02-1
+        given: "_ompimpa/deferred.md berisi 2 item P2"
+        when: "ompimpa sweep dijalankan"
+        then: "2 item dipromote ke ready-for-dev di feature-status.yaml"
+    kill_criteria: []
+    estimate: "M"
+    scoring_impact: "TEA-35"
+
+  - id: C-03
+    epic: EPIC-C
+    title: "Pitfalls Auto-Append dari Triage → Compound Memory"
+    description: |
+      Port pitfalls_manager.py 18KB agyimpa ke rules/pitfalls.md auto-append:
+      setiap REMEDIATE sukses → entry baru di rules/pitfalls.md + _ompimpa/solutions/SOL-*.md,
+      inject ke prompt via compound-solutions skill.
+    tea_tier: "P2"
+    priority: "P1"
+    depends_on: ["B-02"]
+    target_files:
+      - "rules/pitfalls.md # baru"
+      - "_ompimpa/solutions/ # dir"
+      - "skills/compound-solutions/SKILL.md"
+      - "src/triage.ts # appendPitfall()"
+    ac:
+      - id: AC-C03-1
+        given: "REMEDIATE P1 berhasil (mis. IL-01 float→decimal)"
+        when: "commit sukses"
+        then: "rules/pitfalls.md bertambah 1 entry + SOL-XXX ter-index"
+    kill_criteria: []
+    estimate: "S"
+    scoring_impact: "TEA-35"
+
+  - id: C-04
+    epic: EPIC-C
+    title: "Setup Wizard Greenfield/Brownfield Detection"
+    description: |
+      Port setup_wizard.py 54KB agyimpa ke src/cli.ts:handleInit — deteksi mix.exs+lib/ ada/tidak,
+      tulis CLAUDE.md varian Greenfield(scope=full) vs Brownfield(scope=delta), AGENTS.md, policy.toml.
+    tea_tier: "P2"
+    priority: "P2"
+    depends_on: ["A-02"]
+    target_files:
+      - "src/cli.ts # handleInit brownfield detect"
+      - "templates/CLAUDE.md.template # 2 varian"
+      - "templates/AGENTS.md.template # 2 varian"
+      - "test/agent_models_and_config.test.ts"
+    ac:
+      - id: AC-C04-1
+        given: "mix.exs ada & lib/ tidak kosong"
+        when: "ompimpa init dijalankan"
+        then: "CLAUDE.md tulis Brownfield scope=delta, bukan full"
+    kill_criteria: []
+    estimate: "M"
+    scoring_impact: "—"
+
+  - id: C-05
+    epic: EPIC-C
+    title: "Docs Generator Deterministik 4 Kuadran Diátaxis"
+    description: |
+      Port dokumentasi_generator.py 77KB agyimpa ke src/dokumentasi.ts:
+      generate docs/tutorials, how-to, reference, explanation dari stories.yaml+adr+graph.json.
+      Iteratif, mulai 1 template 01-getting-started.md auto-sync.
+    tea_tier: "P2"
+    priority: "P2"
+    depends_on: ["A-02"]
+    target_files:
+      - "src/dokumentasi.ts # baru"
+      - "docs/tutorials/01-getting-started.md"
+      - "docs/how-to/how-to-use-liveview-streams.md"
+      - "skills/diataxis-documentation/SKILL.md"
+    ac:
+      - id: AC-C05-1
+        given: "stories.yaml ada 14 story"
+        when: "ompimpa doc dijalankan"
+        then: "docs/ 4 kuadran ter-generate, 0 placeholder, valid Diátaxis"
+    kill_criteria: []
+    estimate: "M"
+    scoring_impact: "TEA-35"
+
+  - id: C-06
+    epic: EPIC-C
+    title: "Inspeksi 4-Pilar Scorecard 0–100 (Batas/Perf/Keamanan/Docs)"
+    description: |
+      Port inspeksi_engine.py 59KB agyimpa ke src/inspeksi.ts:
+      scorecard 4 pilar (batas, performa, keamanan, docs) 0–100 di _ompimpa/inspeksi/report.md,
+      gabungan xref+credo+sobelow+graphify.
+    tea_tier: "P2"
+    priority: "P2"
+    depends_on: ["A-03"]
+    target_files:
+      - "src/inspeksi.ts # baru"
+      - "_ompimpa/inspeksi/report.md"
+      - "skills/bmm-product/SKILL.md"
+      - "test/inspeksi.test.ts # baru"
+    ac:
+      - id: AC-C06-1
+        given: "repo ada credo+sobelow"
+        when: "ompimpa inspeksi dijalankan"
+        then: "_ompimpa/inspeksi/report.md skor 4 pilar 0–100 terbit"
+    kill_criteria: []
+    estimate: "M"
+    scoring_impact: "TEA-15, TEA-24, TEA-08"

@@ -109,17 +109,31 @@ export function buildReviewPanel(config: OmpimpaConfig): ReviewPanelMember[] {
 }
 
 /**
- * Menghitung Scorecard Pengujian & Kepatuhan Mutu (0-100)
+ * Menghitung Scorecard Pengujian & Kepatuhan Mutu (0-100) — v2 100/100
+ * Port agyimpa 35-Row: Critical -30, High -15, Medium -5, Low -2
+ * PASS only if overall==100 && 0 Critical/High (and allow_p2_nits false => Low also blocks via floor)
  */
 export function calculateScorecard(
   findings: ReviewFinding[],
-  scoreFloor: number = 90
+  scoreFloor: number = 100
 ): ReviewScorecard {
   let techScore = 100;
   let specScore = 100;
+  let totalDeduction = 0;
+
+  function deductionFor(sev: string): number {
+    // Support both P0/P1/P2 and Critical/High/Medium/Low naming (triaging)
+    if (sev === "P0" || sev === "Critical") return 30;
+    if (sev === "P1" || sev === "High") return 15;
+    if (sev === "Medium" || sev === "P2-Medium") return 5;
+    if (sev === "Low" || sev === "P2-Low") return 2;
+    if (sev === "P2") return 5; // Default P2 -> Medium 5 (B-02 expects 1C+1H+1M=50), Low 2 handled via explicit Low
+    return 5; // fallback medium
+  }
 
   for (const f of findings) {
-    const deduction = f.severity === "P0" ? 25 : f.severity === "P1" ? 10 : 3;
+    const deduction = deductionFor(f.severity as string);
+    totalDeduction += deduction;
     if (f.category === "Spec") {
       specScore = Math.max(0, specScore - deduction);
     } else {
@@ -127,17 +141,22 @@ export function calculateScorecard(
     }
   }
 
-  // Bobot: 40% Spec Review, 60% Tech Review
-  const overallScore = Math.round(specScore * 0.4 + techScore * 0.6);
-  const hasBlockers = findings.some((f) => f.severity === "P0");
-  const passed = overallScore >= scoreFloor && !hasBlockers;
+  const overallScore = Math.max(0, 100 - totalDeduction);
+  const hasBlockers = findings.some((f) => f.severity === "P0" || f.severity === "Critical" || f.severity === "High" || f.severity === "P1");
+  // v2: PASS requires 100/100 and no blockers; with floor 100, any Low also makes overall <100 so already blocked
+  // Also respect allow_p2_nits=false: even if overall >= floor, any P2/Low should block when floor 100
+  const hasAnyFinding = findings.length > 0;
+  const passed = overallScore >= scoreFloor && !hasBlockers && !hasAnyFinding ? true : overallScore === 100 && findings.length === 0;
+  // Simplified: passed iff overallScore >= floor && no blockers && (floor===100 ? findings.length===0 : true)
+  // For floor 100, passed only when 0 findings (since any deduction <100)
+  const finalPassed = scoreFloor === 100 ? overallScore === 100 && findings.length === 0 : overallScore >= scoreFloor && !hasBlockers;
 
   return {
     specScore,
     techScore,
     overallScore,
     scoreFloor,
-    passed,
+    passed: finalPassed,
   };
 }
 
@@ -152,7 +171,7 @@ export async function runReview(
 ): Promise<ReviewResult> {
   const config = loadOmpimpaConfig(targetDir);
   const panel = buildReviewPanel(config);
-  const scoreFloor = config.quality?.quality_score_floor ?? 90;
+  const scoreFloor = config.quality?.quality_score_floor ?? 100;
   const findings: ReviewFinding[] = [];
 
   // 1. Jalankan Prewalk Scanner untuk aturan sintaksis/keamanan lokal

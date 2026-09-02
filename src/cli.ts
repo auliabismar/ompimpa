@@ -1,8 +1,16 @@
 import * as fs from "node:fs/promises";
+import * as fsSync from "node:fs";
 import * as path from "node:path";
 import { spawn } from "node:child_process";
 import { parseToml, type OmpimpaModelsConfig } from "../hooks/ompimpa-guard";
-import { runPrewalkScan, type PrewalkScanResult } from "./prewalk";
+import {
+  runPrewalkScan,
+  type PrewalkScanResult,
+  parseStoriesYaml,
+  checkCircularDAG,
+  parseFeatureStatusYaml,
+  getBlockedStory,
+} from "./prewalk";
 import { runReview, type ReviewResult } from "./reviewer";
 const VERSION = "1.0.0";
 const REPO_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
@@ -169,6 +177,9 @@ export async function main() {
       break;
     case "link":
       await handleLink(args.slice(1));
+      break;
+    case "dev":
+      await handleDev(args.slice(1));
       break;
     case "version":
     case "-v":
@@ -411,27 +422,39 @@ artifacts_dir = "_ompimpa"       # Directory for internal PRD, ADR, and status f
 
 [quality]
 enable_atdd = true               # Enforce Red-Phase ATDD before code implementation
-quality_score_floor = 90         # Minimum test quality scorecard threshold (0-100)
+quality_score_floor = 100        # [v2 ADR-001] Skor mutlak 100/100 (port agyimpa 35-Row: -30/-15/-5/-2), PASS hanya 100 (was 90)
+scoring_version = "v2"           # [v2 ADR-001] v1=legacy 90/-25/-10/-3, v2=deterministik 100/-30/-15/-5/-2 + dedup hash
 warnings_as_errors = true        # Enforce mix compile --warnings-as-errors
-max_dev_retries = 3              # Circuit breaker: escalate to human after 3 failed test iterations
+max_dev_retries = 3              # Circuit breaker OTP: eskalasi ke manusia jika 3x gagal tes beruntun (sinkron agyimpa max_retries_per_story=3)
 auto_macro_review_in_dev = true  # Run automated review before commit at the end of story execution
 auto_triage_and_fix = true       # Automatically triage P0/P1 findings and remediate before final commit
 
 [quality.review]
 enable_spec_review = true        # Functional Review: Audit Source Code vs PRD Acceptance Criteria (Agus Salim)
 enable_tech_review = true        # Technical Review: Audit Elixir/Phoenix compliance (Panel of 6 Specialists)
-parallel_reviewers = 6           # Panel of 6 parallel subagents: IronLaw, Security, QA/Test, Compiler, Ecto/Ash, LiveView/Oban
-max_triage_fix_cycles = 2        # Maximum automated remediation cycles before human escalation
+max_triage_fix_cycles = 3        # [v2 ADR-001] Batas siklus perbaikan otomatis sebelum eskalasi (was 2, sinkron agyimpa 3)
+scoring_weights = { Critical = 30, High = 15, Medium = 5, Low = 2 } # [v2] port agyimpa criteria_registry_35.json
+allow_p2_nits = false            # [v2] P2 Low tetap BLOCK (was allow), sinkron agyimpa policy.toml allow_p2_nits=false
 
 [quality.nfr]
 target_p95_latency_ms = 50       # Target p95 response latency (ms) for PRD non-functional requirements
 
+
+# Kill criteria per story (A-02) — dirujuk dari _ompimpa/stories.yaml kill_criteria
+[stories]
+kill_criteria_cache = "_ompimpa/.cache/dag.json" # Jika DAG check >500ms di 100 story → cache
 [quality.verify]
 steps = [
   "compile --warnings-as-errors",
   "format --check-formatted",
   "test"
 ]
+[quality.verify.tier1] # Inner Loop <2s — blocking per story
+steps = ["compile --warnings-as-errors", "format --check-formatted"]
+[quality.verify.tier2] # Per-Story Gate <10s — blocking per story
+steps = ["test --stale"] # + 7 reviewers + triage 100/100 (B-01/B-02)
+[quality.verify.tier3] # Background Audit — non-blocking
+steps = ["test", "credo --strict", "sobelow --strict --format json"]
 
 [resources]
 use_git_worktrees = true         # Execute parallel tasks in isolated Git Worktrees (~/.omp/wt/)
@@ -485,6 +508,38 @@ features: {}
 `;
     await fs.writeFile(statusYamlPath, yamlContent, "utf-8");
     console.log("✅ Created _ompimpa/status/feature-status.yaml");
+  }
+
+  // 4b. A-02: Ensure canonical _ompimpa/stories.yaml and compat symlink
+  const storiesYamlPath = path.join(targetDir, "_ompimpa", "stories.yaml");
+  if (!(await fileExists(storiesYamlPath))) {
+    const repoStories = path.join(REPO_ROOT, "_ompimpa", "stories.yaml");
+    if (await fileExists(repoStories)) {
+      const content = await fs.readFile(repoStories, "utf-8");
+      await fs.writeFile(storiesYamlPath, content, "utf-8");
+      console.log("✅ Created _ompimpa/stories.yaml (canonical DAG)");
+    } else if (await fileExists(path.join(REPO_ROOT, "templates", "ompimpa.toml"))) {
+      console.log("ℹ️  stories.yaml not found in repo template, skipping");
+    }
+  } else {
+    console.log("ℹ️  _ompimpa/stories.yaml already exists");
+  }
+  // Compat: _ompimpa/status/stories.yaml -> ../stories.yaml
+  const compatStoriesPath = path.join(targetDir, "_ompimpa", "status", "stories.yaml");
+  try {
+    if (!(await fileExists(compatStoriesPath)) && (await fileExists(storiesYamlPath))) {
+      try {
+        const rel = path.relative(path.dirname(compatStoriesPath), storiesYamlPath);
+        await fs.symlink(rel, compatStoriesPath);
+        console.log("✅ Created symlink _ompimpa/status/stories.yaml -> ../stories.yaml");
+      } catch {
+        const c = await fs.readFile(storiesYamlPath, "utf-8");
+        await fs.writeFile(compatStoriesPath, c, "utf-8");
+        console.log("✅ Created compat _ompimpa/status/stories.yaml (copy)");
+      }
+    }
+  } catch {
+    // ignore
   }
 
   // 5. Write AGENTS.md
@@ -737,6 +792,121 @@ async function handleLink(_flags: string[]) {
     process.exit(res.code);
   }
 }
+
+async function handleDev(flags: string[]) {
+  const targetDir = process.cwd();
+  // Parse flags
+  let epicFilter: string | null = null;
+  let storyFilter: string | null = null;
+  let auto = false;
+  for (let i = 0; i < flags.length; i++) {
+    const f = flags[i];
+    if (f === "--epic" && flags[i + 1]) {
+      epicFilter = flags[i + 1];
+      i++;
+    } else if (f.startsWith("--epic=")) {
+      epicFilter = f.split("=")[1];
+    } else if (f === "--story" && flags[i + 1]) {
+      storyFilter = flags[i + 1];
+      i++;
+    } else if (f.startsWith("--story=")) {
+      storyFilter = f.split("=")[1];
+    } else if (f === "--auto") {
+      auto = true;
+    }
+  }
+
+  // Load stories.yaml DAG
+  const storiesYamlPath = path.join(targetDir, "_ompimpa", "stories.yaml");
+  const fallbackPath = path.join(targetDir, "_ompimpa", "status", "stories.yaml");
+  let storiesContent: string | null = null;
+  let storiesPathUsed = storiesYamlPath;
+  try {
+    storiesContent = await fs.readFile(storiesYamlPath, "utf-8");
+  } catch {
+    try {
+      storiesContent = await fs.readFile(fallbackPath, "utf-8");
+      storiesPathUsed = fallbackPath;
+    } catch {
+      console.error(`❌ stories.yaml not found at ${storiesYamlPath}`);
+      process.exit(1);
+    }
+  }
+  const stories = parseStoriesYaml(storiesContent!);
+  const dag = checkCircularDAG(stories);
+  if (dag.hasCycle) {
+    console.error(`❌ DAG circular detected: ${dag.cyclePath?.join(" -> ")}`);
+    process.exit(1);
+  }
+  console.log(`✅ DAG validated: ${dag.sorted?.join(" → ")} (source: ${path.relative(targetDir, storiesPathUsed)})`);
+
+  // Load feature-status
+  const statusPath = path.join(targetDir, "_ompimpa", "status", "feature-status.yaml");
+  let statusContent = "";
+  try {
+    statusContent = await fs.readFile(statusPath, "utf-8");
+  } catch {
+    console.warn(`⚠️ feature-status.yaml not found, assuming empty`);
+  }
+  const { doneIds, statusMap } = parseFeatureStatusYaml(statusContent);
+
+  // Handle --story blocker
+  if (storyFilter) {
+    const blocked = getBlockedStory(storyFilter, stories, doneIds);
+    if (blocked) {
+      console.error(`🚫 Blocked: dependency ${blocked} not done`);
+      process.exit(1);
+    }
+    const st = statusMap.get(storyFilter);
+    console.log(`▶️ Story ${storyFilter} status: ${st || "unknown"} — ready for dev`);
+    if (st === "done") {
+      console.log(`✅ Story ${storyFilter} already done`);
+    }
+    // For single story, we would dispatch dev here; for now just validate
+    return;
+  }
+
+  // Handle --epic
+  if (epicFilter) {
+    const epicStories = stories.filter((s) => s.epic === epicFilter);
+    if (epicStories.length === 0) {
+      console.error(`❌ Epic ${epicFilter} not found`);
+      process.exit(1);
+    }
+    // Get topological order filtered by epic, but respecting global DAG order
+    const globalOrder = dag.sorted || [];
+    const epicOrder = globalOrder.filter((id) => epicStories.some((s) => s.id === id));
+    console.log(`\n📦 Epic ${epicFilter} — ${epicStories.length} stories in DAG order: ${epicOrder.join(" → ")}`);
+    if (auto) {
+      console.log(`🤖 Auto loop for epic ${epicFilter} — sequential per story with isolated review`);
+      for (const sid of epicOrder) {
+        const blocked = getBlockedStory(sid, stories, doneIds);
+        if (blocked) {
+          console.error(`🚫 Blocked: ${sid} depends on ${blocked} not done — stopping epic loop`);
+          process.exit(1);
+        }
+        const st = statusMap.get(sid) || "backlog";
+        console.log(`  • ${sid}: ${st} ${st === "done" ? "✅" : st === "in-progress" || st === "ready-for-dev" ? "▶️" : "⏳"}`);
+      }
+      console.log(`\n✅ Epic ${epicFilter} DAG ready — loop would execute story by story with 7→10 isolated reviewers`);
+    }
+    return;
+  }
+
+  // Default: show next ready
+  if (auto) {
+    console.log(`🤖 Auto loop — checking next ready story in DAG order`);
+    for (const sid of dag.sorted || []) {
+      const st = statusMap.get(sid);
+      const blocked = getBlockedStory(sid, stories, doneIds);
+      if (!blocked && (st === "ready-for-dev" || st === "in-progress" || st === "backlog")) {
+        console.log(`▶️ Next story: ${sid} (status: ${st})`);
+        break;
+      }
+    }
+  }
+}
+
 
 if (import.meta.main) {
   main().catch((err) => {

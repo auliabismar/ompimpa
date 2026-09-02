@@ -1,4 +1,7 @@
 # 26 Hukum Besi Elixir & Phoenix (The 26 Iron Laws)
+
+> DEPRECATED: use rules/01..26 — file ini dipertahankan untuk backward compat, jangan di-load oleh TTSR (akan dihapus setelah 26 file stabil). Sumber kanonik: rules/01-no-float-money.md … rules/26-pure-code-comments-and-verification.md sinkron agyimpa 01..26.
+
 *Aturan ini bersifat NON-NEGOTIABLE dan ditegakkan melalui arsitektur pertahanan berlapis: **TTSR Real-Time Stream Guard** (Tier 0) dan **Audit Semantik `ompimpa-ironlaw` (Hj. Rasuna Said)** (Tier 1).*
 
 > **Catatan Arsitektur:** Invariant matematika, tipe data, dan keamanan perimeter di bawah ini bersifat mutlak (*immutable*). Pelanggaran sintaktis langsung di-abort seketika oleh TTSR saat kode sedang diketik di buffer, sementara relasi antar-berkas dan arsitektur tingkat tinggi dinilai oleh Hj. Rasuna Said saat fase review.

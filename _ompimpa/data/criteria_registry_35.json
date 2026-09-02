@@ -1,0 +1,880 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "OMP-IMPA 35-Row Quality Criteria Registry (port dari agyimpa)",
+  "version": "1.0.0-ompimpa",
+  "description": "Single source of truth 35 kriteria evaluasi TEA untuk 9-Review Squad dan Triage Remediation Engine Elixir/Phoenix/Ash Suite.",
+  "dimensions": [
+    "Functional & Correctness",
+    "Security & Compliance",
+    "Architecture & Clean Spine",
+    "Reliability & Performance",
+    "Idioms, Testing & Maintainability"
+  ],
+  "scoring_weights": {
+    "Critical": 30,
+    "High": 15,
+    "Medium": 5,
+    "Low": 2
+  },
+  "criteria": [
+    {
+      "id": "TEA-01",
+      "index": 1,
+      "category": "Functional & Correctness",
+      "name": "Story Acceptance Criteria Traceability",
+      "description": "Memastikan 100% Acceptance Criteria (AC) pada spesifikasi story terpenuhi tanpa deviasi, celah implementasi, atau scope drift.",
+      "default_severity": "High",
+      "default_priority": "P1",
+      "penalty": 15,
+      "reviewer_sources": [
+        "phx_requirements",
+        "bmad_gap_verifier"
+      ],
+      "rule_patterns": [
+        "AC-*",
+        "REQ-*",
+        "FUNC-AC-*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-prd",
+        "ompimpa-prd:gap-verifier"
+      ],
+      "enforcement": "Review Tier1",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-02",
+      "index": 2,
+      "category": "Functional & Correctness",
+      "name": "Boundary & Extreme Data Resilience",
+      "description": "Ketahanan terhadap nilai batas ekstrem, input kosong, nil, boundary integer/float, format string tak lazim, dan boundary payload.",
+      "default_severity": "Critical",
+      "default_priority": "P0",
+      "penalty": 30,
+      "reviewer_sources": [
+        "bmad_adversarial"
+      ],
+      "rule_patterns": [
+        "ADV-EDGE-*",
+        "EDGE-CASE-*",
+        "CRASH-*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-prd:adversarial"
+      ],
+      "enforcement": "Review Tier1",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-03",
+      "index": 3,
+      "category": "Functional & Correctness",
+      "name": "State & Data Mutation Consistency",
+      "description": "Konsistensi mutasi data multi-tahap, integritas transaksi database Ecto, dan isolasi state socket LiveView / Ash domain.",
+      "default_severity": "High",
+      "default_priority": "P1",
+      "penalty": 15,
+      "reviewer_sources": [
+        "phx_ash_policy",
+        "phx_requirements"
+      ],
+      "rule_patterns": [
+        "STATE-*",
+        "MUTATION-*",
+        "DATA-INTEGRITY-*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-ash",
+        "ompimpa-prd"
+      ],
+      "enforcement": "Review Tier1",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-04",
+      "index": 4,
+      "category": "Functional & Correctness",
+      "name": "Explicit Error Handling & Graceful Degradation",
+      "description": "Penanganan kegagalan secara eksplisit dengan pattern matching {:ok, _} / {:error, _} atau konstruksi with/else, tanpa silent rescue.",
+      "default_severity": "High",
+      "default_priority": "P1",
+      "penalty": 15,
+      "reviewer_sources": [
+        "phx_elixir_idioms",
+        "bmad_adversarial"
+      ],
+      "rule_patterns": [
+        "ERR-HANDLE-*",
+        "SILENT-FAIL-*",
+        "UNHANDLED-ERROR-*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-prd:adversarial",
+        "ompimpa-verify"
+      ],
+      "enforcement": "Review Tier1",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-05",
+      "index": 5,
+      "category": "Functional & Correctness",
+      "name": "Deterministic Business Logic",
+      "description": "Logika bisnis murni deterministik bebas dari efek samping tersembunyi, ketergantungan urutan proses yang ambigu, atau race condition.",
+      "default_severity": "Medium",
+      "default_priority": "P2",
+      "penalty": 5,
+      "reviewer_sources": [
+        "phx_requirements",
+        "phx_elixir_idioms"
+      ],
+      "rule_patterns": [
+        "LOGIC-*",
+        "DETERMINISTIC-*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-prd",
+        "ompimpa-verify"
+      ],
+      "enforcement": "Review Tier1",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-06",
+      "index": 6,
+      "category": "Functional & Correctness",
+      "name": "Ash Action & DSL Semantic Alignment",
+      "description": "Kesesuaian semantik aksi resource Ash (create, read, update, destroy), validasi changesets, dan integritas domain relationship.",
+      "default_severity": "High",
+      "default_priority": "P1",
+      "penalty": 15,
+      "reviewer_sources": [
+        "phx_ash_policy"
+      ],
+      "rule_patterns": [
+        "ASH-ACTION-*",
+        "ASH-DSL-*",
+        "ASH-CHANGE-*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-ash"
+      ],
+      "enforcement": "Review Tier1",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-07",
+      "index": 7,
+      "category": "Functional & Correctness",
+      "name": "Regression Guard & Invariant Preservation",
+      "description": "Pencegahan terhadap regresi fungsional yang merusak fungsionalitas modul terkait atau melanggar invariant arsitektur.",
+      "default_severity": "High",
+      "default_priority": "P1",
+      "penalty": 15,
+      "reviewer_sources": [
+        "bmad_gap_verifier",
+        "bmad_adversarial"
+      ],
+      "rule_patterns": [
+        "REGRESSION-*",
+        "INVARIANT-*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-prd:adversarial",
+        "ompimpa-prd:gap-verifier"
+      ],
+      "enforcement": "Review Tier1",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-08",
+      "index": 8,
+      "category": "Security & Compliance",
+      "name": "Sobelow SAST Vulnerability Prevention",
+      "description": "Pencegahan celah keamanan SAST Sobelow meliputi SQL injection, XSS HEEX, path traversal, RCE, dan insecure deserialization (Iron Law 19).",
+      "default_severity": "Critical",
+      "default_priority": "P0",
+      "penalty": 30,
+      "reviewer_sources": [
+        "phx_security_sobelow"
+      ],
+      "rule_patterns": [
+        "SEC-SOBELOW*",
+        "SOBELOW-*",
+        "SEC-INJECTION-*",
+        "IL-19*",
+        "SEC-RAW-XSS*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-security"
+      ],
+      "enforcement": "TTSR Tier0 + Review Tier1",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-09",
+      "index": 9,
+      "category": "Security & Compliance",
+      "name": "Atom Table Exhaustion Guard (Iron Law 17)",
+      "description": "Larangan konversi input pengguna tidak terpercaya menjadi atom via String.to_atom/1; wajib gunakan String.to_existing_atom/1 atau pattern matching.",
+      "default_severity": "Critical",
+      "default_priority": "P0",
+      "penalty": 30,
+      "reviewer_sources": [
+        "phx_security_sobelow",
+        "phx_iron_laws"
+      ],
+      "rule_patterns": [
+        "IL-17*",
+        "SEC-ATOM-*",
+        "ATOM-EXHAUSTION*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-ironlaw",
+        "ompimpa-security"
+      ],
+      "enforcement": "TTSR Tier0 + Review Tier1",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-10",
+      "index": 10,
+      "category": "Security & Compliance",
+      "name": "LiveView Event Authorization (Iron Law 18)",
+      "description": "Validasi otorisasi dan identitas actor/session pada setiap callback handle_event/3 LiveView guna mencegah unauthorized action invocation.",
+      "default_severity": "Critical",
+      "default_priority": "P0",
+      "penalty": 30,
+      "reviewer_sources": [
+        "phx_security_sobelow",
+        "phx_iron_laws"
+      ],
+      "rule_patterns": [
+        "IL-18*",
+        "SEC-AUTH-EVENT*",
+        "AUTH-HANDLE-EVENT*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-ironlaw",
+        "ompimpa-security"
+      ],
+      "enforcement": "TTSR Tier0 + Review Tier1",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-11",
+      "index": 11,
+      "category": "Security & Compliance",
+      "name": "Multi-Tenant Actor & Tenant Isolation",
+      "description": "Penegakan isolasi tenant dan actor pada resource Ash via Ash.Policy dan filter context, mencegah kebocoran data lintas organisasi.",
+      "default_severity": "Critical",
+      "default_priority": "P0",
+      "penalty": 30,
+      "reviewer_sources": [
+        "phx_ash_policy",
+        "phx_security_sobelow"
+      ],
+      "rule_patterns": [
+        "ASH-POLICY-*",
+        "TENANT-ISOLATION*",
+        "SEC-TENANT-*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-ash",
+        "ompimpa-security"
+      ],
+      "enforcement": "TTSR Tier0 + Review Tier1",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-12",
+      "index": 12,
+      "category": "Security & Compliance",
+      "name": "Raw SQL & Query Sanitization (Iron Law 04)",
+      "description": "Larangan mutlak interpolasi string mentah pada fragment/query Ecto; wajib gunakan parameter pinning ^ atau parameterized fragment bindings.",
+      "default_severity": "Critical",
+      "default_priority": "P0",
+      "penalty": 30,
+      "reviewer_sources": [
+        "phx_iron_laws",
+        "phx_security_sobelow"
+      ],
+      "rule_patterns": [
+        "IL-04*",
+        "SEC-SQL-*",
+        "RAW-SQL-*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-ironlaw",
+        "ompimpa-security"
+      ],
+      "enforcement": "TTSR Tier0 + Review Tier1",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-13",
+      "index": 13,
+      "category": "Security & Compliance",
+      "name": "Secrets & Credential Protection",
+      "description": "Larangan penulisan rahasia (API key, password, token, webhook secret) secara langsung di kode sumber; wajib gunakan runtime env vars.",
+      "default_severity": "Critical",
+      "default_priority": "P0",
+      "penalty": 30,
+      "reviewer_sources": [
+        "phx_security_sobelow"
+      ],
+      "rule_patterns": [
+        "SEC-SECRET*",
+        "HARDCODED-TOKEN*",
+        "CREDENTIAL-LEAK*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-security"
+      ],
+      "enforcement": "TTSR Tier0 + Review Tier1",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-14",
+      "index": 14,
+      "category": "Security & Compliance",
+      "name": "CSRF & LiveView Channel Token Verification",
+      "description": "Verifikasi token CSRF pada form submissions, upload endpoint, dan koneksi websocket / channel LiveView.",
+      "default_severity": "High",
+      "default_priority": "P1",
+      "penalty": 15,
+      "reviewer_sources": [
+        "phx_security_sobelow"
+      ],
+      "rule_patterns": [
+        "SEC-CSRF*",
+        "CSRF-TOKEN*",
+        "CHANNEL-AUTH*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-security"
+      ],
+      "enforcement": "TTSR Tier0 + Review Tier1",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-15",
+      "index": 15,
+      "category": "Architecture & Clean Spine",
+      "name": "Context Boundary & Public API Encapsulation",
+      "description": "Larangan pemanggilan Repo atau query schema secara langsung lintas konteks domain; seluruh akses wajib melalui Context Public API atau Ash Action.",
+      "default_severity": "High",
+      "default_priority": "P1",
+      "penalty": 15,
+      "reviewer_sources": [
+        "bmad_structural",
+        "phx_ash_policy"
+      ],
+      "rule_patterns": [
+        "ARCH-BOUNDARY*",
+        "CROSS-CONTEXT*",
+        "DIRECT-REPO-*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-ash",
+        "ompimpa-prd:structural"
+      ],
+      "enforcement": "Review Tier1 (Rasuna Said / Structural)",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-16",
+      "index": 16,
+      "category": "Architecture & Clean Spine",
+      "name": "Circular Dependency Prevention (mix xref)",
+      "description": "Mencegah pembentukan dependensi sirkular antar modul context atau komponen web yang memicu kompilasi berulang dan tight coupling.",
+      "default_severity": "High",
+      "default_priority": "P1",
+      "penalty": 15,
+      "reviewer_sources": [
+        "bmad_structural"
+      ],
+      "rule_patterns": [
+        "ARCH-CIRCULAR*",
+        "XREF-CYCLE*",
+        "CYCLIC-DEP*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-prd:structural"
+      ],
+      "enforcement": "Review Tier1 (Rasuna Said / Structural)",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-17",
+      "index": 17,
+      "category": "Architecture & Clean Spine",
+      "name": "Monetary Decimal Precision (Iron Law 01)",
+      "description": "Larangan mutlak penggunaan tipe :float untuk representasi uang/finansial; wajib menggunakan :decimal atau integer cents.",
+      "default_severity": "Critical",
+      "default_priority": "P0",
+      "penalty": 30,
+      "reviewer_sources": [
+        "phx_iron_laws"
+      ],
+      "rule_patterns": [
+        "IL-01*",
+        "MONEY-FLOAT*",
+        "DECIMAL-PRECISION*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-ironlaw"
+      ],
+      "enforcement": "TTSR Tier0 + Review Tier1",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-18",
+      "index": 18,
+      "category": "Architecture & Clean Spine",
+      "name": "OTP Supervision & Process Lifecycle (Iron Law 20/21/24/25)",
+      "description": "Setiap proses berumur panjang wajib berada di bawah Supervisor yang tepat, proses spawning terjustifikasi, isolasi locale, dan app start minimal (Iron Law 20, 21, 24, 25).",
+      "default_severity": "High",
+      "default_priority": "P1",
+      "penalty": 15,
+      "reviewer_sources": [
+        "phx_iron_laws",
+        "phx_elixir_idioms"
+      ],
+      "rule_patterns": [
+        "IL-20*",
+        "IL-21*",
+        "IL-24*",
+        "IL-25*",
+        "OTP-SUPERVISOR*",
+        "UNSUPERVISED-PROC*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-ironlaw",
+        "ompimpa-verify"
+      ],
+      "enforcement": "Review Tier1 (Rasuna Said / Structural)",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-19",
+      "index": 19,
+      "category": "Architecture & Clean Spine",
+      "name": "Third-Party API Facade & Adapter (Iron Law 23)",
+      "description": "Pemisahan integrasi layanan eksternal melalui antarmuka Behaviour/Facade adapter guna mempermudah mocking dan isolasi pengujian.",
+      "default_severity": "Medium",
+      "default_priority": "P2",
+      "penalty": 5,
+      "reviewer_sources": [
+        "phx_iron_laws",
+        "bmad_structural"
+      ],
+      "rule_patterns": [
+        "IL-23*",
+        "FACADE-API*",
+        "EXTERNAL-ADAPTER*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-ironlaw",
+        "ompimpa-prd:structural"
+      ],
+      "enforcement": "Review Tier1 (Rasuna Said / Structural)",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-20",
+      "index": 20,
+      "category": "Architecture & Clean Spine",
+      "name": "LiveView Disconnected Mount Safety (Iron Law 02/05/07)",
+      "description": "Pencegahan query database berat atau duplikasi PubSub subscription pada fase disconnected mount LiveView dan larangan assign_new dinamis (Iron Law 02, 05, 07).",
+      "default_severity": "High",
+      "default_priority": "P1",
+      "penalty": 15,
+      "reviewer_sources": [
+        "phx_iron_laws"
+      ],
+      "rule_patterns": [
+        "IL-02*",
+        "IL-05*",
+        "IL-07*",
+        "LV-MOUNT-QUERY*",
+        "PUBSUB-CONNECTED*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-ironlaw"
+      ],
+      "enforcement": "Review Tier1 (Rasuna Said / Structural)",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-21",
+      "index": 21,
+      "category": "Architecture & Clean Spine",
+      "name": "Ash Resource Domain Layering & DSL Hygiene",
+      "description": "Pemisahan deklarasi resource Ash, relationship, identities, dan calculations sesuai standar Clean Spine arsitektur domain.",
+      "default_severity": "Medium",
+      "default_priority": "P2",
+      "penalty": 5,
+      "reviewer_sources": [
+        "phx_ash_policy",
+        "bmad_structural"
+      ],
+      "rule_patterns": [
+        "ASH-LAYER-*",
+        "ASH-RESOURCE-*",
+        "DSL-HYGIENE*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-ash",
+        "ompimpa-prd:structural"
+      ],
+      "enforcement": "Review Tier1 (Rasuna Said / Structural)",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-22",
+      "index": 22,
+      "category": "Reliability & Performance",
+      "name": "LiveView Mandatory Streams (Iron Law 03)",
+      "description": "Wajib menggunakan Phoenix.LiveView.stream/4 untuk render koleksi data besar guna mencegah memory ballooning pada socket assigns.",
+      "default_severity": "Critical",
+      "default_priority": "P0",
+      "penalty": 30,
+      "reviewer_sources": [
+        "phx_iron_laws",
+        "bmad_adversarial"
+      ],
+      "rule_patterns": [
+        "IL-03*",
+        "LV-STREAM*",
+        "LARGE-COLLECTION-ASSIGN*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-ironlaw",
+        "ompimpa-prd:adversarial"
+      ],
+      "enforcement": "TTSR Tier0 + Review Tier1",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-23",
+      "index": 23,
+      "category": "Reliability & Performance",
+      "name": "Concurrency & Race Condition Safety",
+      "description": "Keamanan terhadap eksekusi paralel konkuren, integritas lock Ecto, race condition pada counter/saldo, dan deadlock avoidance.",
+      "default_severity": "High",
+      "default_priority": "P1",
+      "penalty": 15,
+      "reviewer_sources": [
+        "bmad_adversarial"
+      ],
+      "rule_patterns": [
+        "ADV-RACE-*",
+        "CONCURRENCY-*",
+        "DEADLOCK-*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-prd:adversarial"
+      ],
+      "enforcement": "Review Tier1",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-24",
+      "index": 24,
+      "category": "Reliability & Performance",
+      "name": "Memory & Resource Leak Prevention",
+      "description": "Pencegahan memory leak pada tabel ETS, akumulasi message queue Process mailbox tak terkontrol, dan retainment state assigns berlebih.",
+      "default_severity": "High",
+      "default_priority": "P1",
+      "penalty": 15,
+      "reviewer_sources": [
+        "bmad_adversarial"
+      ],
+      "rule_patterns": [
+        "ADV-LEAK-*",
+        "MEMORY-LEAK*",
+        "ETS-OVERFLOW*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-prd:adversarial"
+      ],
+      "enforcement": "Review Tier1",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-25",
+      "index": 25,
+      "category": "Reliability & Performance",
+      "name": "Oban Job Idempotency & String Keys (Iron Law 13/14/15/16)",
+      "description": "Worker Oban wajib idempoten, mendefinisikan unique lock, menggunakan string keys pada args, dan dilarang menyisipkan Structs langsung (Iron Law 13-16).",
+      "default_severity": "High",
+      "default_priority": "P1",
+      "penalty": 15,
+      "reviewer_sources": [
+        "phx_iron_laws"
+      ],
+      "rule_patterns": [
+        "IL-13*",
+        "IL-14*",
+        "IL-15*",
+        "IL-16*",
+        "OBAN-*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-ironlaw"
+      ],
+      "enforcement": "Review Tier1",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-26",
+      "index": 26,
+      "category": "Reliability & Performance",
+      "name": "N+1 Query & Join Optimization (Iron Law 09/10)",
+      "description": "Pencegahan N+1 queries dengan Ecto preloading yang efisien, larangan implicit cross join, dan perbaikan query loop.",
+      "default_severity": "High",
+      "default_priority": "P1",
+      "penalty": 15,
+      "reviewer_sources": [
+        "phx_iron_laws",
+        "bmad_adversarial"
+      ],
+      "rule_patterns": [
+        "IL-09*",
+        "IL-10*",
+        "ECTO-NPLUS1*",
+        "CROSS-JOIN*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-ironlaw",
+        "ompimpa-prd:adversarial"
+      ],
+      "enforcement": "Review Tier1",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-27",
+      "index": 27,
+      "category": "Reliability & Performance",
+      "name": "Compile-time External Resource Safety (Iron Law 22)",
+      "description": "Larangan pemanggilan HTTP endpoint, socket eksternal, atau operasi I/O jaringan pada saat kompilasi Elixir (@attribute execution).",
+      "default_severity": "High",
+      "default_priority": "P1",
+      "penalty": 15,
+      "reviewer_sources": [
+        "phx_iron_laws"
+      ],
+      "rule_patterns": [
+        "IL-22*",
+        "COMPILE-TIME-IO*",
+        "EXTERNAL-COMPILE*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-ironlaw"
+      ],
+      "enforcement": "Review Tier1",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-28",
+      "index": 28,
+      "category": "Reliability & Performance",
+      "name": "Timeout & Circuit Breaker Guard",
+      "description": "Penyediaan konfigurasi timeout dan circuit breaker yang aman untuk seluruh panggilan GenServer.call, HTTP client, dan database connections.",
+      "default_severity": "Medium",
+      "default_priority": "P2",
+      "penalty": 5,
+      "reviewer_sources": [
+        "bmad_adversarial"
+      ],
+      "rule_patterns": [
+        "ADV-TIMEOUT*",
+        "CIRCUIT-BREAKER*",
+        "CALL-TIMEOUT*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-prd:adversarial"
+      ],
+      "enforcement": "Review Tier1",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-29",
+      "index": 29,
+      "category": "Idioms, Testing & Maintainability",
+      "name": "Acceptance Criteria Test Coverage",
+      "description": "Cakupan pengujian otomatis 100% untuk setiap Acceptance Criteria yang ditentukan di spesifikasi story tanpa test case yang terlewat.",
+      "default_severity": "High",
+      "default_priority": "P1",
+      "penalty": 15,
+      "reviewer_sources": [
+        "bmad_gap_verifier",
+        "phx_testing_quality"
+      ],
+      "rule_patterns": [
+        "GAP-AC-*",
+        "TEST-MISSING-*",
+        "UNTESTED-REQ*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-prd:gap-verifier",
+        "ompimpa-test"
+      ],
+      "enforcement": "Review Tier1",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-30",
+      "index": 30,
+      "category": "Idioms, Testing & Maintainability",
+      "name": "ExUnit Assertion Quality & Hygiene",
+      "description": "Kualitas penegasan ExUnit bermutu tinggi, tidak ada assertions palsu (false positive/tautology), isolasi database Sandbox aman, dan deterministik.",
+      "default_severity": "High",
+      "default_priority": "P1",
+      "penalty": 15,
+      "reviewer_sources": [
+        "phx_testing_quality"
+      ],
+      "rule_patterns": [
+        "TST-ASSERT-*",
+        "TST-MOCK-*",
+        "FALSE-POSITIVE*",
+        "FLAKY-TEST*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-test"
+      ],
+      "enforcement": "Review Tier1",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-31",
+      "index": 31,
+      "category": "Idioms, Testing & Maintainability",
+      "name": "Idiomatic Elixir Pipe Chains & Matching",
+      "description": "Kepatuhan terhadap idiom Elixir murni: pipe chains |> dimulai dari raw value, pattern matching bersih, dan lolos mix credo --strict.",
+      "default_severity": "Medium",
+      "default_priority": "P2",
+      "penalty": 5,
+      "reviewer_sources": [
+        "phx_elixir_idioms"
+      ],
+      "rule_patterns": [
+        "ELX-PIPE-*",
+        "ELX-IDIOM-*",
+        "CREDO-*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-verify"
+      ],
+      "enforcement": "Review Tier1",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-32",
+      "index": 32,
+      "category": "Idioms, Testing & Maintainability",
+      "name": "Typespecs & Dialyzer Contracts (@spec)",
+      "description": "Kelengkapan deklarasi @spec dan @type pada fungsi publik untuk validasi Dialyzer yang presisi dan dokumentasi kontrak data.",
+      "default_severity": "Low",
+      "default_priority": "P2",
+      "penalty": 2,
+      "reviewer_sources": [
+        "phx_elixir_idioms"
+      ],
+      "rule_patterns": [
+        "ELX-SPEC-*",
+        "DIALYZER-*",
+        "TYPE-CONTRACT*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-verify"
+      ],
+      "enforcement": "Review Tier1",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-33",
+      "index": 33,
+      "category": "Idioms, Testing & Maintainability",
+      "name": "Ecto Changeset Explicit Error Handling (Iron Law 06/08/11/12)",
+      "description": "Pemeriksaan dan penanganan kesalahan changeset secara eksplisit, form inputs embedded schema, dan validasi cast_assoc (Iron Law 06, 08, 11, 12).",
+      "default_severity": "Medium",
+      "default_priority": "P2",
+      "penalty": 5,
+      "reviewer_sources": [
+        "phx_iron_laws"
+      ],
+      "rule_patterns": [
+        "IL-06*",
+        "IL-08*",
+        "IL-11*",
+        "IL-12*",
+        "CHANGESET-ERROR*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-ironlaw"
+      ],
+      "enforcement": "Review Tier1",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-34",
+      "index": 34,
+      "category": "Idioms, Testing & Maintainability",
+      "name": "Pure Code Hygiene & Comment Cleanliness (Iron Law 26)",
+      "description": "Kode sumber bersih dari kode mati, logger debug sementara yang tidak terpakai, dan komentar yang bertentangan dengan implementasi.",
+      "default_severity": "Low",
+      "default_priority": "P2",
+      "penalty": 2,
+      "reviewer_sources": [
+        "phx_iron_laws",
+        "phx_elixir_idioms"
+      ],
+      "rule_patterns": [
+        "IL-26*",
+        "DEAD-CODE*",
+        "COMMENT-HYGIENE*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-ironlaw",
+        "ompimpa-verify"
+      ],
+      "enforcement": "Review Tier1",
+      "scoring_version": "v2"
+    },
+    {
+      "id": "TEA-35",
+      "index": 35,
+      "category": "Idioms, Testing & Maintainability",
+      "name": "Documentation & Diátaxis Alignment",
+      "description": "Kesesuaian modul doc (@moduledoc, @doc) dengan standar dokumentasi Diátaxis tanpa adanya placeholder atau informasi usang.",
+      "default_severity": "Low",
+      "default_priority": "P2",
+      "penalty": 2,
+      "reviewer_sources": [
+        "phx_requirements",
+        "bmad_structural"
+      ],
+      "rule_patterns": [
+        "DOC-DIATAXIS*",
+        "DOC-MISSING*",
+        "OUTDATED-DOC*"
+      ],
+      "ompimpa_panel": [
+        "ompimpa-prd",
+        "ompimpa-prd:structural"
+      ],
+      "enforcement": "Review Tier1",
+      "scoring_version": "v2"
+    }
+  ],
+  "origin": "agyimpa/.agents/data/criteria_registry_35.json v1.0.0 (2026-09-02)",
+  "adapted_for": "ompimpa v1.0.0 — Oh My Pi harness, TS/Bun native, 7→10 isolated reviewers",
+  "adapted_date": "2026-09-02",
+  "scoring_formula": "Score = max(0, 100 - (Critical*30 + High*15 + Medium*5 + Low*2)); PASS iff Score==100 && 0 P0/Critical/High",
+  "ompimpa_config_reference": "templates/ompimpa.toml [quality.review] scoring_version=v2, floor=100, parallel_reviewers=6, max_triage_fix_cycles=3",
+  "adr_reference": "_ompimpa/adr/ADR-001-panen-agyimpa-isolated-review-criteria-registry.md",
+  "balairung_reference": "_ompimpa/balairung/BALAIRUNG-20260902-panen-agyimpa-review-sync.md"
+}
