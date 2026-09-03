@@ -1,6 +1,6 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-
+import yaml from "yaml";
 export interface TriageFinding {
   file?: string;
   line?: number | null;
@@ -76,7 +76,10 @@ export function deduplicateFindings(findings: TriageFinding[]): TriageFinding[] 
     const file = f.file || "global";
     const linePart = f.line == null ? "" : String(f.line);
     // Key: file:line:ruleId (A-02 AC-B02-3: file-level line=null => file:ruleId)
-    const key = linePart ? `${file}:${linePart}:${f.ruleId}` : `${file}:${f.ruleId}`;
+    // If message mentions specific AC, preserve uniqueness per AC
+    const acMatch = f.message?.match(/acceptance criterion:\s*(AC-[a-zA-Z0-9_.-]+)/i);
+    const subKey = acMatch ? `:${acMatch[1].toUpperCase()}` : "";
+    const key = linePart ? `${file}:${linePart}:${f.ruleId}` : `${file}:${f.ruleId}${subKey}`;
     const existing = map.get(key);
     if (!existing) {
       map.set(key, { ...f, merged_sources: 1, sources: f.sources || [f.ruleId] });
@@ -228,6 +231,15 @@ export async function aggregateReviews(
       });
     }
   }
+  // In-band TEA-01 Traceability & Mutation Guard (E-01)
+  try {
+    const trace = await auditTeaTraceability(storyId, { repoRoot: targetDir, reviewDir });
+    if (trace && trace.findings.length > 0) {
+      findings.push(...trace.findings);
+    }
+  } catch {
+    // Non-fatal if spec doesn't exist
+  }
 
   const deduped = deduplicateFindings(findings);
   const score = calculateScore(deduped);
@@ -236,7 +248,472 @@ export async function aggregateReviews(
   return { findings, deduped, score, missing, remediation };
 }
 
-export function appendPitfall(entry: string, pitfallsPath?: string): Promise<void> {
-  // Stub for C-03: append to rules/pitfalls.md (not used in EPIC-A but provided for completeness)
-  return Promise.resolve();
+export async function appendPitfall(entry: string, pitfallsPath?: string): Promise<void> {
+  const targetPath = pitfallsPath || path.join(REPO_ROOT, "rules", "pitfalls.md");
+  const solutionsDir = path.join(REPO_ROOT, "_ompimpa", "solutions");
+  await fs.mkdir(solutionsDir, { recursive: true });
+  const timestamp = new Date().toISOString().slice(0, 10);
+  const randomSuffix = Math.random().toString(16).slice(2, 8);
+  const solId = `SOL-${String(Date.now()).slice(-6)}-${randomSuffix}`;
+  let pitfallsEntry = entry;
+  if (!entry.trim().startsWith("###") && !entry.trim().startsWith("-")) {
+    pitfallsEntry = `### [${timestamp}] ${entry}\n- **Auto-appended:** ${entry}\n- **SOL:** ${solId}\n`;
+  }
+  // Append to pitfalls.md
+  try {
+    const existing = await fs.readFile(targetPath, "utf-8").catch(() => "");
+    const next = existing.trimEnd() + "\n\n" + pitfallsEntry.trim() + "\n";
+    await fs.writeFile(targetPath, next, "utf-8");
+  } catch {}
+
+  // Also create SOL file in _ompimpa/solutions/
+  const solTitle = entry.split("\n")[0].slice(0, 40).replace(/[^a-zA-Z0-9_-]/g, "-") || "pitfall";
+  const solFile = path.join(solutionsDir, `${solId}-${solTitle}.md`);
+  const solContent = `---
+id: ${solId}
+topic: ${solTitle}
+tags: [pitfall, auto-append]
+date: ${timestamp}
+---
+
+# Solusi ${solId}: ${entry.split("\n")[0].slice(0, 80)}
+
+## Gejala & Masalah
+${entry}
+
+## Akar Penyebab (Root Cause)
+Terdeteksi via triage dedup REMEDIATE P0/P1, scoring 100/100.
+
+## Pola Solusi yang Terbukti (Proven Fix)
+Lihat pitfalls.md entry di atas.
+
+## Invariant Pencegahan Regresi
+1. TTSR rule terkait harus abort dengan remediation tepat di line.
+2. Dedup file:line:ruleId menjaga penalty 1×.
+`;
+  try {
+    await fs.writeFile(solFile, solContent, "utf-8");
+  } catch {}
+}
+
+export interface TraceabilityCheckResult {
+  coveredACs: string[];
+  missingACs: string[];
+  falseGreens: TriageFinding[];
+  findings: TriageFinding[];
+}
+
+export interface TraceabilityAuditResult extends TraceabilityCheckResult {
+  storyId: string;
+  specPath?: string;
+}
+
+export interface TraceabilityOptions {
+  repoRoot?: string;
+  specPath?: string;
+  testFiles?: string[];
+  reviewDir?: string;
+}
+
+export function extractStoryACs(specContent: string): string[] {
+  const acMap = new Map<string, string>();
+  // Match Scenario: (AC-...) or Scenario Outline: (AC-...)
+  const scenarioRegex = /(?:Scenario|Scenario Outline):\s*([A-Za-z0-9_.-]+)/gi;
+  let match: RegExpExecArray | null;
+  while ((match = scenarioRegex.exec(specContent)) !== null) {
+    const raw = match[1].trim();
+    if (raw.toUpperCase().startsWith("AC-")) {
+      acMap.set(raw.toUpperCase(), raw);
+    }
+  }
+
+  // If scenarios matched ACs, that's our canonical list!
+  if (acMap.size > 0) {
+    return Array.from(acMap.values());
+  }
+
+  // Fallback: match id: AC-... or markdown list - AC-... or bold **AC-...**
+  const idRegex = /(?:id:\s*|(?:\*\*|#+|-\s*|\b))(AC-[a-zA-Z0-9_.-]+)/gi;
+  while ((match = idRegex.exec(specContent)) !== null) {
+    const raw = match[1].trim();
+    if (raw.toUpperCase().startsWith("AC-")) {
+      if (!acMap.has(raw.toUpperCase())) {
+        acMap.set(raw.toUpperCase(), raw);
+      }
+    }
+  }
+
+  return Array.from(acMap.values());
+}
+
+export function detectFalseGreens(content: string, filePath?: string): TriageFinding[] {
+  const findings: TriageFinding[] = [];
+  const lines = content.split(/\r?\n/);
+
+  // Line-by-line tautology / vacuous assertion check
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lineNum = i + 1;
+    const trimmed = line.trim();
+
+    // Skip comment lines
+    if (trimmed.startsWith("//") || trimmed.startsWith("#") || trimmed.startsWith("*")) {
+      continue;
+    }
+
+    let vacuousMatch: string | null = null;
+
+    // TypeScript / JS tautologies:
+    // expect(true).toBe(true), expect(true).toEqual(true), expect(false).toBe(false), expect(false).toBeFalsy()
+    if (/expect\s*\(\s*true\s*\)\s*\.\s*(?:toBe|toEqual)\s*\(\s*true\s*\)/i.test(line)) {
+      vacuousMatch = "expect(true).toBe(true)";
+    } else if (/expect\s*\(\s*true\s*\)\s*\.\s*toBeTruthy\s*\(\s*\)/i.test(line)) {
+      vacuousMatch = "expect(true).toBeTruthy()";
+    } else if (/expect\s*\(\s*false\s*\)\s*\.\s*(?:toBe|toEqual)\s*\(\s*false\s*\)/i.test(line)) {
+      vacuousMatch = "expect(false).toBe(false)";
+    } else if (/expect\s*\(\s*false\s*\)\s*\.\s*toBeFalsy\s*\(\s*\)/i.test(line)) {
+      vacuousMatch = "expect(false).toBeFalsy()";
+    }
+    // Elixir ExUnit tautologies:
+    // assert true, assert :ok == :ok
+    else if (/assert\s+true\b(?:\s*==\s*true)?(?:\s*$|\s+#|\s*,)/.test(line)) {
+      vacuousMatch = "assert true";
+    } else if (/assert\s+:([a-zA-Z0-9_]+)\s*==\s*:\1\b(?:\s*$|\s+#)/.test(line)) {
+      const atomMatch = line.match(/assert\s+:([a-zA-Z0-9_]+)\s*==\s*:\1\b/);
+      vacuousMatch = atomMatch ? atomMatch[0] : "assert :ok == :ok";
+    }
+
+    if (vacuousMatch) {
+      findings.push({
+        file: filePath || "unknown",
+        line: lineNum,
+        ruleId: "TEA-01",
+        rule_violation: "TEA-01: In-Band Mutation Guard (Assertion False Green)",
+        category: "Idioms, Testing & Maintainability",
+        severity: "High",
+        message: `False green detected: vacuous assertion '${vacuousMatch}' violates TEA-01 In-Band Mutation Guard`,
+        recommendation: "Replace vacuous assertion with substantive assertions verifying actual state, return values, or side-effects.",
+        sources: ["bmad_gap_verifier", "ompimpa-test"],
+      });
+    }
+  }
+
+  // Check for empty test blocks (no assertions in body) with brace-depth tracking
+  // JS/TS: (it|test)("...", () => { ... })
+  const tsTestOpener = /(?:it|test)\s*\(\s*["'`]([^"'`]+)["'`]\s*,\s*(?:async\s*)?(?:\([^)]*\)|[a-zA-Z0-9_]+)?\s*=>\s*\{/g;
+  let testMatch: RegExpExecArray | null;
+  while ((testMatch = tsTestOpener.exec(content)) !== null) {
+    const testTitle = testMatch[1];
+    const startIndex = testMatch.index;
+    const braceStart = tsTestOpener.lastIndex - 1;
+
+    let depth = 1;
+    let endIndex = -1;
+    for (let pos = braceStart + 1; pos < content.length; pos++) {
+      if (content[pos] === "{") depth++;
+      else if (content[pos] === "}") {
+        depth--;
+        if (depth === 0) {
+          endIndex = pos;
+          break;
+        }
+      }
+    }
+
+    if (endIndex !== -1) {
+      const testBody = content.slice(braceStart + 1, endIndex);
+      const stripped = testBody.replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, "").trim();
+      const hasAssertion = /expect\s*\(|assert\s*\(|assert\./.test(stripped);
+      if (!hasAssertion) {
+        const prefix = content.slice(0, startIndex);
+        const testLine = prefix.split(/\r?\n/).length;
+        findings.push({
+          file: filePath || "unknown",
+          line: testLine,
+          ruleId: "TEA-01",
+          rule_violation: "TEA-01: Empty test case without assertions",
+          category: "Idioms, Testing & Maintainability",
+          severity: "High",
+          message: `Empty test case detected: '${testTitle}' has no assertions violating TEA-01 In-Band Mutation Guard`,
+          recommendation: "Add substantive assertions verifying the expected behavior of the tested unit.",
+          sources: ["bmad_gap_verifier", "ompimpa-test"],
+        });
+      }
+    }
+  }
+
+  // Elixir: test "..." do ... end
+  const elixirTestRegex = /test\s+["']([^"']+)["']\s*(?:,\s*[\s\S]*?)?\s*\bdo\b([\s\S]*?)\bend\b/g;
+  while ((testMatch = elixirTestRegex.exec(content)) !== null) {
+    const testTitle = testMatch[1];
+    const testBody = testMatch[2];
+    const stripped = testBody.replace(/#[^\n]*/g, "").trim();
+    const hasAssertion = /\b(?:assert|assert_|refute|refute_)\b/.test(stripped);
+    if (!hasAssertion) {
+      const prefix = content.slice(0, testMatch.index);
+      const testLine = prefix.split(/\r?\n/).length;
+      findings.push({
+        file: filePath || "unknown",
+        line: testLine,
+        ruleId: "TEA-01",
+        rule_violation: "TEA-01: Empty test case without assertions",
+        category: "Idioms, Testing & Maintainability",
+        severity: "High",
+        message: `Empty test case detected: '${testTitle}' has no assertions violating TEA-01 In-Band Mutation Guard`,
+        recommendation: "Add substantive assertions verifying the expected behavior of the tested unit.",
+        sources: ["bmad_gap_verifier", "ompimpa-test"],
+      });
+    }
+  }
+
+  return findings;
+}
+
+interface ParsedTestCase {
+  title: string;
+  file: string;
+  startLine: number;
+  endLine: number;
+  hasAssertion: boolean;
+  hasSubstantive: boolean;
+  hasFalseGreen: boolean;
+}
+
+export function checkACTraceability(
+  specACs: string[],
+  testFiles: Array<{ file: string; content: string }>
+): TraceabilityCheckResult {
+  const coveredACs: string[] = [];
+  const missingACs: string[] = [];
+  const findings: TriageFinding[] = [];
+  const falseGreens: TriageFinding[] = [];
+
+  // 1. Detect false greens across test files
+  for (const tf of testFiles) {
+    const fgs = detectFalseGreens(tf.content, tf.file);
+    falseGreens.push(...fgs);
+  }
+
+  // 2. Parse test cases in all test files
+  const parsedTests: ParsedTestCase[] = [];
+
+  for (const tf of testFiles) {
+    const content = tf.content;
+
+    // TS block: it/test("...", () => { ... }) with brace-depth tracking
+    const tsBlockOpener = /(?:it|test)\s*\(\s*["'`]([^"'`]+)["'`]\s*,\s*(?:async\s*)?(?:\([^)]*\)|[a-zA-Z0-9_]+)?\s*=>\s*\{/g;
+    let m: RegExpExecArray | null;
+    while ((m = tsBlockOpener.exec(content)) !== null) {
+      const title = m[1];
+      const startIndex = m.index;
+      const braceStart = tsBlockOpener.lastIndex - 1;
+
+      let depth = 1;
+      let endIndex = -1;
+      for (let pos = braceStart + 1; pos < content.length; pos++) {
+        if (content[pos] === "{") depth++;
+        else if (content[pos] === "}") {
+          depth--;
+          if (depth === 0) {
+            endIndex = pos;
+            break;
+          }
+        }
+      }
+
+      if (endIndex !== -1) {
+        const body = content.slice(braceStart + 1, endIndex);
+        const prefix = content.slice(0, startIndex);
+        const startLine = prefix.split(/\r?\n/).length;
+        const endLine = content.slice(0, endIndex).split(/\r?\n/).length;
+
+        const hasFG = falseGreens.some((fg) => fg.file === tf.file && fg.line != null && fg.line >= startLine && fg.line <= endLine);
+        const stripped = body.replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, "").trim();
+        const hasAssertion = /expect\s*\(|assert\s*\(/.test(stripped);
+        const hasSubstantive = hasAssertion && !hasFG;
+        parsedTests.push({ title, file: tf.file, startLine, endLine, hasAssertion, hasSubstantive, hasFalseGreen: hasFG });
+      }
+    }
+    const tsConciseRegex = /(?:it|test)\s*\(\s*["'`]([^"'`]+)["'`]\s*,\s*(?:async\s*)?(?:\([^)]*\)|[a-zA-Z0-9_]+)?\s*=>\s*([^{}\n]+(?:;|\)))/g;
+    while ((m = tsConciseRegex.exec(content)) !== null) {
+      const title = m[1];
+      const body = m[2];
+      const prefix = content.slice(0, m.index);
+      const startLine = prefix.split(/\r?\n/).length;
+      const endLine = startLine;
+      const hasFG = falseGreens.some((fg) => fg.file === tf.file && fg.line === startLine);
+      const hasAssertion = /expect\s*\(|assert\s*\(/.test(body);
+      const hasSubstantive = hasAssertion && !hasFG;
+      parsedTests.push({ title, file: tf.file, startLine, endLine, hasAssertion, hasSubstantive, hasFalseGreen: hasFG });
+    }
+
+    // Elixir: test "..." do ... end
+    const elixirRegex = /test\s+["']([^"']+)["']\s*(?:,\s*[\s\S]*?)?\s*\bdo\b([\s\S]*?)\bend\b/g;
+    while ((m = elixirRegex.exec(content)) !== null) {
+      const body = m[2];
+      const prefix = content.slice(0, m.index);
+      const startLine = prefix.split(/\r?\n/).length;
+      const endLine = startLine + m[0].split(/\r?\n/).length - 1;
+      const hasFG = falseGreens.some((fg) => fg.file === tf.file && fg.line != null && fg.line >= startLine && fg.line <= endLine);
+      const stripped = body.replace(/#[^\n]*/g, "").trim();
+      const hasAssertion = /\b(?:assert|assert_|refute|refute_)\b/.test(stripped);
+      const hasSubstantive = hasAssertion && !hasFG;
+      parsedTests.push({ title, file: tf.file, startLine, endLine, hasAssertion, hasSubstantive, hasFalseGreen: hasFG });
+    }
+  }
+
+  // 3. Match each AC against parsed tests with exact word boundary
+  for (const ac of specACs) {
+    const acClean = ac.trim();
+    const acRegex = new RegExp(`\\b${acClean.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+    const matchingTests = parsedTests.filter((t) => acRegex.test(t.title));
+    if (matchingTests.length === 0) {
+      missingACs.push(acClean);
+    } else {
+      // Check if any matching test is substantive
+      const anyValid = matchingTests.some((t) => t.hasSubstantive);
+      if (anyValid) {
+        coveredACs.push(acClean);
+      } else {
+        missingACs.push(acClean);
+      }
+    }
+  }
+
+  // 4. Generate High Findings for missing ACs
+  for (const missing of missingACs) {
+    findings.push({
+      file: testFiles[0]?.file || "test/",
+      line: null,
+      ruleId: "TEA-01",
+      rule_violation: `Missing test assertion for acceptance criterion: ${missing}`,
+      category: "Functional & Correctness",
+      severity: "High",
+      message: `Missing test assertion for acceptance criterion: ${missing} (TEA-01 Traceability)`,
+      recommendation: `Add an automated test case with substantive assertions verifying acceptance criterion ${missing}.`,
+      sources: ["bmad_gap_verifier"],
+    });
+  }
+
+  // 5. Append false greens to findings
+  findings.push(...falseGreens);
+
+  return { coveredACs, missingACs, falseGreens, findings };
+}
+
+export async function auditTeaTraceability(
+  storyId: string,
+  opts: TraceabilityOptions = {}
+): Promise<TraceabilityAuditResult> {
+  const repoRoot = opts.repoRoot || REPO_ROOT;
+  const targetStory = storyId.toUpperCase().replace(/^STORY-/, "");
+
+  // 1. Locate spec file
+  let specPath = opts.specPath;
+  let specContent: string | null = null;
+
+  if (specPath) {
+    try {
+      specContent = await fs.readFile(specPath, "utf-8");
+    } catch {}
+  }
+
+  if (!specContent) {
+    const candidates = [
+      path.join(repoRoot, "_ompimpa", "specs", `SPEC-${storyId}.md`),
+      path.join(repoRoot, "_ompimpa", "specs", `SPEC-${targetStory}.md`),
+      path.join(repoRoot, "_ompimpa", "specs", `SPEC-${storyId.toLowerCase()}.md`),
+    ];
+    for (const c of candidates) {
+      try {
+        specContent = await fs.readFile(c, "utf-8");
+        specPath = c;
+        break;
+      } catch {}
+    }
+  }
+
+  let specACs: string[] = [];
+  if (specContent) {
+    specACs = extractStoryACs(specContent);
+  }
+
+  // If no ACs in spec, try reading from _ompimpa/stories.yaml via structured YAML
+  if (specACs.length === 0) {
+    try {
+      const storiesYamlPath = path.join(repoRoot, "_ompimpa", "stories.yaml");
+      const yamlContent = await fs.readFile(storiesYamlPath, "utf-8");
+      const parsedData = yaml.parse(yamlContent);
+      const storyEntry = parsedData?.stories?.find((s: any) => s.id === storyId || s.id === targetStory);
+      if (storyEntry && Array.isArray(storyEntry.ac)) {
+        specACs = storyEntry.ac.map((a: any) => a.id).filter(Boolean);
+      }
+    } catch {}
+  }
+
+  // 2. Scan test files (scoped to story target_files if available)
+  const testFiles: Array<{ file: string; content: string }> = [];
+  let storyTestFiles: string[] = [];
+  try {
+    const storiesYamlPath = path.join(repoRoot, "_ompimpa", "stories.yaml");
+    const yamlContent = await fs.readFile(storiesYamlPath, "utf-8");
+    const parsedData = yaml.parse(yamlContent);
+    const storyEntry = parsedData?.stories?.find((s: any) => s.id === storyId || s.id === targetStory);
+    if (storyEntry && Array.isArray(storyEntry.target_files)) {
+      storyTestFiles = storyEntry.target_files
+        .map((f: string) => f.split("#")[0].trim())
+        .filter((f: string) => f.endsWith(".test.ts") || f.endsWith(".test.js") || f.endsWith("_test.exs") || f.endsWith(".spec.ts"));
+    }
+  } catch {}
+
+  if (opts.testFiles && opts.testFiles.length > 0) {
+    for (const f of opts.testFiles) {
+      try {
+        const full = path.isAbsolute(f) ? f : path.join(repoRoot, f);
+        const content = await fs.readFile(full, "utf-8");
+        testFiles.push({ file: f, content });
+      } catch {}
+    }
+  } else if (storyTestFiles.length > 0) {
+    for (const f of storyTestFiles) {
+      try {
+        const full = path.isAbsolute(f) ? f : path.join(repoRoot, f);
+        const content = await fs.readFile(full, "utf-8");
+        testFiles.push({ file: f, content });
+      } catch {}
+    }
+  } else {
+    // Scan test directory
+    const testDir = path.join(repoRoot, "test");
+    async function collectTestFiles(dir: string) {
+      try {
+        const entries = await fs.readdir(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          const res = path.join(dir, entry.name);
+          if (entry.isDirectory()) {
+            await collectTestFiles(res);
+          } else if (
+            entry.isFile() &&
+            (entry.name.endsWith(".test.ts") ||
+             entry.name.endsWith(".test.js") ||
+             entry.name.endsWith(".spec.ts") ||
+             entry.name.endsWith(".spec.js") ||
+             entry.name.endsWith("_test.exs"))
+          ) {
+            const rel = path.relative(repoRoot, res);
+            const content = await fs.readFile(res, "utf-8");
+            testFiles.push({ file: rel, content });
+          }
+        }
+      } catch {}
+    }
+    await collectTestFiles(testDir);
+  }
+
+  const checkResult = checkACTraceability(specACs, testFiles);
+  return {
+    storyId,
+    specPath,
+    ...checkResult,
+  };
 }

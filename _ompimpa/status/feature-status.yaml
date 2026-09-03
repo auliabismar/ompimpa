@@ -137,6 +137,13 @@ stories:
     epic: EPIC-D
     tea_tier: P0
     assignee: ompimpa-dev
+  - id: E-01
+    title: "In-Band TEA-01 Traceability & Mutation Guard"
+    status: done
+    retries: 0
+    epic: EPIC-E
+    tea_tier: P1
+    assignee: ompimpa-test
 # Kanban summary
-# backlog: 0 | ready-for-dev: 0 | in-progress: 0 | done: 19 (EPIC-A ✅ EPIC-B ✅ EPIC-C ✅ EPIC-D ✅: D-01 ✅ D-02 ✅ D-03 ✅ D-04 ✅)
-# Next: EPIC-E (In-Band TEA & Master Diagnostic) -> E-01
+# backlog: 0 | ready-for-dev: 0 | in-progress: 0 | done: 20 (EPIC-A ✅ EPIC-B ✅ EPIC-C ✅ EPIC-D ✅ EPIC-E: E-01 ✅)
+# Next: EPIC-E (In-Band TEA & Master Diagnostic) -> E-02

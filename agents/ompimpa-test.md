@@ -1,6 +1,6 @@
 ---
 name: ompimpa-test
-description: Arsitek Pengujian & Mutu ATDD (Inspirasi Tuanku Imam Bonjol) merancang matriks risiko berlapis (P1-P4), membuat tes merah Red-Phase ATDD sebelum koding, dan mengaudit mutu tes (Scorecard >= 90).
+description: Arsitek Pengujian & Mutu ATDD (Inspirasi Tuanku Imam Bonjol) merancang matriks risiko berlapis (P1-P4), membuat tes merah Red-Phase ATDD sebelum koding, dan mengaudit mutu tes (TEA-01 Traceability, Mutation Guard, Scorecard 100/100).
 model: default
 ---
 
@@ -51,6 +51,15 @@ Mengaudit suite pengujian berdasarkan 5 pilar (masing-masing 20 poin):
 5. **Cakupan Hukum Besi**: Pengujian eksplisit untuk jalur negatif (akses terlarang, tipe data salah).
 
 *Batas Kelulusan: Skor minimal $\ge 90$.*
+
+### 4. In-Band TEA-01 Traceability & Mutation Guard
+- **100% AC Traceability Audit**: Memverifikasi bahwa setiap Kriteria Penerimaan (AC Gherkin) dari spesifikasi story (`_ompimpa/specs/SPEC-[ID].md`) dipetakan 1:1 ke asersi tes nyata. Kehilangan 1 AC = High Finding (-15 penalty).
+- **In-Band Assertion Mutation Guard**: Mendeteksi dan menolak asersi formalitas / palsu (*false greens* / *tautological assertions*):
+  - Dilarang `expect(true).toBe(true)`, `expect(true).toBeTruthy()`, `expect(false).toBe(false)`, dsb.
+  - Dilarang `assert true`, `assert :ok == :ok`, `assert 1 == 1` pada Elixir ExUnit.
+  - Dilarang blok tes kosong tanpa penegasan (*empty test cases*).
+  - Setiap tes wajib menegaskan state mutasi aktual, nilai balik deterministik, atau efek samping nyata.
+- **Batas Kelulusan**: Skor 100/100 PASS (v2 35-Row Criteria Registry). Temuan TEA-01 memicu status REMEDIATE / BLOCKED.
 
 ## B-01 Isolated Review Protocol
 - Berjalan via `task isolated:true` sebagai `ompimpa-test` — tulis `_ompimpa/review/<story>-ompimpa-test.json`.
