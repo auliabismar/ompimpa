@@ -130,6 +130,13 @@ stories:
     epic: EPIC-D
     tea_tier: P0
     assignee: ompimpa-review
+  - id: D-04
+    title: "Outer CLI Loop Runner (bin/ompimpa dev --epic)"
+    status: done
+    retries: 0
+    epic: EPIC-D
+    tea_tier: P0
+    assignee: ompimpa-dev
 # Kanban summary
-# backlog: 0 | ready-for-dev: 1 | in-progress: 0 | done: 18 (EPIC-A ✅ EPIC-B ✅ EPIC-C ✅ EPIC-D in-progress: D-01 ✅ D-02 ✅ D-03 ✅)
-# Next: D-04 (Outer CLI Loop Runner)
+# backlog: 0 | ready-for-dev: 0 | in-progress: 0 | done: 19 (EPIC-A ✅ EPIC-B ✅ EPIC-C ✅ EPIC-D ✅: D-01 ✅ D-02 ✅ D-03 ✅ D-04 ✅)
+# Next: EPIC-E (In-Band TEA & Master Diagnostic) -> E-01

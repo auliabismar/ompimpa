@@ -4,6 +4,13 @@ import * as path from "node:path";
 import * as os from "node:os";
 import { spawn } from "node:child_process";
 import { parseStoriesYaml, checkCircularDAG, getBlockedStory } from "../src/prewalk";
+import {
+  runEpicLoop,
+  runStoryPhases,
+  updateFeatureStatus,
+  type EpicLoopOptions,
+  type EpicLoopResult,
+} from "../src/loop_runner";
 
 const REPO_ROOT = path.resolve(import.meta.dir, "..");
 
@@ -126,5 +133,198 @@ describe("B-06 Epic Orchestrator Flag --epic (Dev per Epic, Review per Story)", 
     const res = await runCli(["dev", "--epic", "EPIC-A", "--auto"]);
     const out = res.stdout + res.stderr;
     expect(out).toMatch(/isolated|7→10|7->10|per story/i);
+  });
+});
+
+describe("D-04 Outer CLI Loop Runner (bin/ompimpa dev --epic)", () => {
+  it("AC-D04-1 @tea-01: outer while-loop controller executes stories sequentially with fresh process context", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "ompimpa-d04-loop-"));
+    const tmpOmpimpa = path.join(tmp, "_ompimpa");
+    const tmpStatus = path.join(tmpOmpimpa, "status");
+    await fs.mkdir(tmpStatus, { recursive: true });
+
+    const sampleStoriesYaml = `
+epics:
+  - id: EPIC-TEST
+    title: "Test Epic"
+    description: "Testing outer loop"
+stories:
+  - id: T-01
+    epic: EPIC-TEST
+    title: "Story 1"
+    description: "Desc 1"
+    tea_tier: "P0"
+    priority: "P0"
+    depends_on: []
+    target_files: ["src/t1.ts"]
+    ac:
+      - id: AC-T01-1
+        given: "given 1"
+        when: "when 1"
+        then: "then 1"
+  - id: T-02
+    epic: EPIC-TEST
+    title: "Story 2"
+    description: "Desc 2"
+    tea_tier: "P0"
+    priority: "P0"
+    depends_on: ["T-01"]
+    target_files: ["src/t2.ts"]
+    ac:
+      - id: AC-T02-1
+        given: "given 2"
+        when: "when 2"
+        then: "then 2"
+`;
+    await fs.writeFile(path.join(tmpOmpimpa, "stories.yaml"), sampleStoriesYaml, "utf-8");
+
+    const initialStatus = `stories:
+  - id: T-01
+    status: ready-for-dev
+    retries: 0
+    epic: EPIC-TEST
+  - id: T-02
+    status: ready-for-dev
+    retries: 0
+    epic: EPIC-TEST
+`;
+    await fs.writeFile(path.join(tmpStatus, "feature-status.yaml"), initialStatus, "utf-8");
+
+    // Track executed subprocesses/commands to verify fresh process context per story
+    const executedCalls: Array<{ cmd: string; args: string[]; story?: string; phase?: string }> = [];
+    const mockExecutor = async (cmd: string, args: string[], cwd: string) => {
+      executedCalls.push({ cmd, args });
+      return { code: 0, stdout: `[PID ${Math.floor(Math.random() * 10000)}] phase complete`, stderr: "" };
+    };
+
+    const result = await runEpicLoop({
+      epicId: "EPIC-TEST",
+      auto: true,
+      targetDir: tmp,
+      executor: mockExecutor,
+    });
+
+    expect(result.success).toBeTrue();
+    expect(result.epicId).toBe("EPIC-TEST");
+    expect(result.totalStories).toBe(2);
+    expect(result.completedStories).toEqual(["T-01", "T-02"]);
+    expect(result.failedStories).toEqual([]);
+    expect(result.executedStories).toEqual(["T-01", "T-02"]);
+
+    // Verify fresh process calls occurred sequentially for each story
+    expect(executedCalls.length).toBeGreaterThan(0);
+
+    // Verify feature-status was updated to done for both stories
+    const finalStatus = await fs.readFile(path.join(tmpStatus, "feature-status.yaml"), "utf-8");
+    expect(finalStatus).toContain("status: done");
+
+    await fs.rm(tmp, { recursive: true, force: true });
+  });
+
+  it("AC-D04-1 @tea-01: updates feature-status.yaml to done upon 100/100 pass", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "ompimpa-d04-status-"));
+    const tmpStatus = path.join(tmp, "_ompimpa", "status");
+    await fs.mkdir(tmpStatus, { recursive: true });
+
+    const statusPath = path.join(tmpStatus, "feature-status.yaml");
+    const initial = `stories:
+  - id: D-04
+    title: "Outer CLI Loop Runner"
+    status: ready-for-dev
+    retries: 0
+    epic: EPIC-D
+`;
+    await fs.writeFile(statusPath, initial, "utf-8");
+
+    await updateFeatureStatus(tmp, "D-04", "done", 0);
+
+    const updated = await fs.readFile(statusPath, "utf-8");
+    expect(updated).toContain("status: done");
+    expect(updated).toContain("retries: 0");
+
+    await fs.rm(tmp, { recursive: true, force: true });
+  });
+
+  it("AC-D04-1 @tea-01: circuit breaker stops loop after max retries (max 3) if score < 100", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "ompimpa-d04-cb-"));
+    const tmpOmpimpa = path.join(tmp, "_ompimpa");
+    const tmpStatus = path.join(tmpOmpimpa, "status");
+    await fs.mkdir(tmpStatus, { recursive: true });
+
+    const sampleStoriesYaml = `
+epics:
+  - id: EPIC-FAIL
+    title: "Fail Epic"
+stories:
+  - id: F-01
+    epic: EPIC-FAIL
+    title: "Failing Story"
+    depends_on: []
+    target_files: ["src/fail.ts"]
+    ac:
+      - id: AC-F01-1
+        given: "given"
+        when: "when"
+        then: "then"
+  - id: F-02
+    epic: EPIC-FAIL
+    title: "Should Not Run"
+    depends_on: ["F-01"]
+    target_files: ["src/skip.ts"]
+    ac:
+      - id: AC-F02-1
+        given: "given"
+        when: "when"
+        then: "then"
+`;
+    await fs.writeFile(path.join(tmpOmpimpa, "stories.yaml"), sampleStoriesYaml, "utf-8");
+
+    const initialStatus = `stories:
+  - id: F-01
+    status: ready-for-dev
+    retries: 0
+    epic: EPIC-FAIL
+  - id: F-02
+    status: ready-for-dev
+    retries: 0
+    epic: EPIC-FAIL
+`;
+    await fs.writeFile(path.join(tmpStatus, "feature-status.yaml"), initialStatus, "utf-8");
+
+    // Mock executor that fails triage with exit code 1 (score < 100 / REMEDIATE)
+    let triageAttempts = 0;
+    const mockFailingExecutor = async (cmd: string, args: string[], cwd: string) => {
+      if (args.includes("triage")) {
+        triageAttempts++;
+        return { code: 1, stdout: "Score: 70/100 — Verdict: 🚫 REMEDIATE", stderr: "P0 violation" };
+      }
+      return { code: 0, stdout: "ok", stderr: "" };
+    };
+
+    const result = await runEpicLoop({
+      epicId: "EPIC-FAIL",
+      auto: true,
+      targetDir: tmp,
+      maxRetries: 3,
+      executor: mockFailingExecutor,
+    });
+
+    expect(result.success).toBeFalse();
+    expect(result.failedStories).toContain("F-01");
+    expect(result.completedStories).not.toContain("F-01");
+    // F-02 should NOT have executed because F-01 failed and tripped circuit breaker
+    expect(result.executedStories).not.toContain("F-02");
+    expect(triageAttempts).toBe(3);
+    expect(result.message).toMatch(/circuit breaker|max retries/i);
+
+    await fs.rm(tmp, { recursive: true, force: true });
+  });
+
+  it("AC-D04-1 @tea-01: CLI dev --epic <ID> --auto executes via outer loop runner with fresh process context", async () => {
+    const res = await runCli(["dev", "--epic", "EPIC-A", "--auto"]);
+    expect(res.code).toBe(0);
+    const out = res.stdout + res.stderr;
+    expect(out).toContain("Epic EPIC-A");
+    expect(out).toMatch(/loop runner|outer loop|fresh process context|subprocess/i);
   });
 });

@@ -12,6 +12,9 @@ import {
   getBlockedStory,
 } from "./prewalk";
 import { runReview, type ReviewResult } from "./reviewer";
+import { generateStorySpec } from "./story_spec";
+import { aggregateReviews, type AggregateResult } from "./triage";
+import { runEpicLoop } from "./loop_runner";
 const VERSION = "1.0.0";
 const REPO_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 
@@ -121,6 +124,9 @@ async function runCommand(
 ): Promise<{ code: number; stdout: string; stderr: string }> {
   const { promise, resolve } = Promise.withResolvers<{ code: number; stdout: string; stderr: string }>();
   const proc = spawn(cmd, args, { cwd, stdio: ["inherit", "pipe", "pipe"] });
+  proc.on("error", (err) => {
+    resolve({ code: 1, stdout, stderr: `${stderr}\nSpawn error: ${err.message}` });
+  });
   let stdout = "";
   let stderr = "";
 
@@ -181,6 +187,27 @@ export async function main() {
     case "dev":
       await handleDev(args.slice(1));
       break;
+    case "graphify":
+      await handleGraphify(args.slice(1));
+      break;
+    case "sweep":
+      await handleSweep(args.slice(1));
+      break;
+    case "doc":
+      await handleDoc(args.slice(1));
+      break;
+    case "inspeksi":
+      await handleInspeksi(args.slice(1));
+      break;
+    case "story":
+      await handleStory(args.slice(1));
+      break;
+    case "code":
+      await handleCode(args.slice(1));
+      break;
+    case "triage":
+      await handleTriage(args.slice(1));
+      break;
     case "version":
     case "-v":
     case "--version":
@@ -209,8 +236,14 @@ Commands:
   sync      Synchronize ompimpa.toml model tiers into agent frontmatter definitions
   doctor    Diagnose project setup, toolchain availability, and Iron Law violations
   verify    Execute strict Elixir quality gate (compile, format, credo, sobelow, tests)
-  link      Link this OMP-IMPA plugin into local OMP environment
-  version   Show version information
+  dev       Coordinate modular 5-phase engineering pipeline or outer loop per epic
+  graphify  Generate _ompimpa/graph.json + graph.html blast-radius (C-01)
+  sweep     Promote deferred P2 entries to ready-for-dev (C-02)
+  doc       Generate Diátaxis docs deterministically (C-05)
+  inspeksi  Generate 4-pilar scorecard 0–100 (C-06)
+  story     Generate JIT micro specification (_ompimpa/specs/SPEC-[ID].md) before ATDD (D-01)
+  code      Execute green-phase code implementation by stack specialist (D-02)
+  triage    Run deterministic deduplication & 100/100 scoring scorecard (D-02)
   help      Show this help message
 
 Options:
@@ -290,36 +323,6 @@ async function handleReview(args: string[]) {
   if (result.verdict === "BLOCKED") {
     process.exit(1);
   }
-}
-
-function printHelp() {
-  console.log(`
-OMP-IMPA (Integrated Modular Phoenix Architecture for OMP) v${VERSION}
-
-Usage:
-  ompimpa <command> [options]
-
-Commands:
-  init      Initialize OMP-IMPA configuration and agent prompts in current Phoenix project (Greenfield/Brownfield)
-  sync      Synchronize ompimpa.toml model tiers into agent frontmatter definitions
-  doctor    Diagnose project setup, toolchain availability, and Iron Law violations
-  verify    Execute strict Elixir quality gate (compile, format, credo, sobelow, tests)
-  link      Link this OMP-IMPA plugin into local OMP environment
-  version   Show version information
-  help      Show this help message
-
-Options:
-  --ash         Force enable Ash Framework presets
-  --no-ash      Force use Vanilla Phoenix + Ecto
-  --oban        Force enable Oban background job worker configuration
-  --no-oban     Force disable Oban presets
-  --force       Overwrite existing configuration files
-
-Plugin Installation:
-  Global Install (Git):      omp plugin install github:auliabismar/ompimpa
-  Marketplace Install:       omp plugin marketplace add auliabismar/ompimpa && omp plugin install ompimpa@ompimpa
-  Local Link (Dev):          omp plugin link /path/to/ompimpa
-`);
 }
 
 async function handleSync(_flags: string[]) {
@@ -542,29 +545,43 @@ features: {}
     // ignore
   }
 
-  // 5. Write AGENTS.md
+  // 5. Write AGENTS.md — C-04 Wizard Greenfield/Brownfield Detection
   const agentsMdPath = path.join(targetDir, "AGENTS.md");
   const templateAgents = path.join(REPO_ROOT, "templates", "AGENTS.md.template");
   if (await fileExists(templateAgents)) {
     if (!force && (await fileExists(agentsMdPath))) {
       console.log("ℹ️  AGENTS.md already exists (skipped, use --force to overwrite)");
     } else {
-      const content = await fs.readFile(templateAgents, "utf-8");
+      let content = await fs.readFile(templateAgents, "utf-8");
+      // C-04: Inject scope variant
+      const scope = isBrownfield ? "delta" : "full";
+      const projectType = isBrownfield ? "Brownfield" : "Greenfield";
+      content = content.replace(/\{\{scope\}\}/g, scope).replace(/\{\{projectType\}\}/g, projectType);
+      // Append scope header if not already templated
+      if (!content.includes("scope=")) {
+        content += `\n\n> **Setup Wizard:** ${projectType} (scope=${scope}) — ${isBrownfield ? "Existing codebase detected (mix.exs + lib/ ada)" : "New project (no mix.exs/lib)"}\n`;
+      }
       await fs.writeFile(agentsMdPath, content, "utf-8");
-      console.log("✅ Created AGENTS.md");
+      console.log(`✅ Created AGENTS.md (${projectType} scope=${scope})`);
     }
   }
 
-  // 6. Write CLAUDE.md
+  // 6. Write CLAUDE.md — C-04 variant
   const claudeMdPath = path.join(targetDir, "CLAUDE.md");
   const templateClaude = path.join(REPO_ROOT, "templates", "CLAUDE.md.template");
   if (await fileExists(templateClaude)) {
     if (!force && (await fileExists(claudeMdPath))) {
       console.log("ℹ️  CLAUDE.md already exists (skipped, use --force to overwrite)");
     } else {
-      const content = await fs.readFile(templateClaude, "utf-8");
+      let content = await fs.readFile(templateClaude, "utf-8");
+      const scope = isBrownfield ? "delta" : "full";
+      const projectType = isBrownfield ? "Brownfield" : "Greenfield";
+      content = content.replace(/\{\{scope\}\}/g, scope).replace(/\{\{projectType\}\}/g, projectType);
+      if (!content.includes("scope=")) {
+        content += `\n\n> **Setup Wizard:** ${projectType} (scope=${scope}) — ${isBrownfield ? "mix.exs ada & lib/ tidak kosong → delta sync" : "Greenfield → full scaffold"}\n`;
+      }
       await fs.writeFile(claudeMdPath, content, "utf-8");
-      console.log("✅ Created CLAUDE.md");
+      console.log(`✅ Created CLAUDE.md (${projectType} scope=${scope})`);
     }
   }
 
@@ -704,18 +721,22 @@ async function handleDoctor(_flags: string[]) {
     }
   }
 
-  // 4. Check OMP-IMPA TTSR Stream Rules
+  // 4. Check OMP-IMPA TTSR Stream Rules — A-01 1:1 26 Laws (numeric 01..26) + legacy elixir-* for compat
   console.log("\n🛡️ OMP TTSR Real-Time Stream Rules:");
   const rulesDir = path.join(REPO_ROOT, "rules");
   try {
     const ruleFiles = await fs.readdir(rulesDir);
     const modularRules = ruleFiles.filter(
-      (f) => f.startsWith("elixir-") && f.endsWith(".md") && !f.includes("iron-laws")
+      (f) => (f.startsWith("elixir-") || /^\d{2}-/.test(f)) && f.endsWith(".md") && !f.includes("iron-laws") && !f.includes("quality-gates") && !f.includes("pitfalls")
     );
-    console.log(`  ✅ [ACTIVE] Loaded ${modularRules.length} modular TTSR real-time stream rule(s) in rules/`);
-    for (const r of modularRules) {
+    // Prefer numeric 26 if available (A-01)
+    const numericCount = modularRules.filter((f) => /^\d{2}-/.test(f)).length;
+    const displayCount = numericCount >= 26 ? numericCount : modularRules.length;
+    console.log(`  ✅ [ACTIVE] Loaded ${displayCount} modular TTSR real-time stream rule(s) in rules/`);
+    for (const r of modularRules.slice(0, 30)) {
       console.log(`     • ${r}`);
     }
+    if (modularRules.length > 30) console.log(`     • … +${modularRules.length - 30} more`);
   } catch {
     console.log(`  ⚠️ [WARNING] Failed to load TTSR rules directory (${rulesDir})`);
   }
@@ -930,17 +951,27 @@ async function handleDev(flags: string[]) {
     const epicOrder = globalOrder.filter((id) => epicStories.some((s) => s.id === id));
     console.log(`\n📦 Epic ${epicFilter} — ${epicStories.length} stories in DAG order: ${epicOrder.join(" → ")}`);
     if (auto) {
-      console.log(`🤖 Auto loop for epic ${epicFilter} — sequential per story with isolated review`);
+      console.log(`🤖 Outer loop runner for epic ${epicFilter} — sequential per story with fresh process context`);
+      console.log(`   Quality guarantee: 7→10 isolated reviewers per story with fresh subprocess context`);
       for (const sid of epicOrder) {
         const blocked = getBlockedStory(sid, stories, doneIds);
-        if (blocked) {
-          console.error(`🚫 Blocked: ${sid} depends on ${blocked} not done — stopping epic loop`);
+        if (blocked && !epicStories.some((s) => s.id === blocked)) {
+          console.error(`🚫 Blocked: ${sid} depends on external dependency ${blocked} not done — stopping epic loop`);
           process.exit(1);
         }
         const st = statusMap.get(sid) || "backlog";
         console.log(`  • ${sid}: ${st} ${st === "done" ? "✅" : st === "in-progress" || st === "ready-for-dev" ? "▶️" : "⏳"}`);
       }
-      console.log(`\n✅ Epic ${epicFilter} DAG ready — loop would execute story by story with 7→10 isolated reviewers`);
+      const loopResult = await runEpicLoop({
+        epicId: epicFilter,
+        auto: true,
+        targetDir,
+      });
+      if (!loopResult.success) {
+        console.error(`❌ Epic loop stopped: ${loopResult.message}`);
+        process.exit(1);
+      }
+      console.log(`\n✅ Epic ${epicFilter} completed successfully: ${loopResult.completedStories.length}/${loopResult.totalStories} stories done.`);
     }
     return;
   }
@@ -956,6 +987,244 @@ async function handleDev(flags: string[]) {
         break;
       }
     }
+  }
+}
+async function handleGraphify(flags: string[]) {
+  const targetDir = process.cwd();
+  const blastArgIdx = flags.indexOf("--blast");
+  let blastFile: string | null = null;
+  if (blastArgIdx >= 0 && flags[blastArgIdx + 1]) blastFile = flags[blastArgIdx + 1];
+  console.log(`\n🕸️ Running Graphify blast-radius in: ${targetDir}`);
+  const { generateGraphFiles, getBlastRadius, buildGraph } = await import("./graphify");
+  const res = await generateGraphFiles(targetDir);
+  console.log(`✅ Generated ${path.relative(targetDir, res.jsonPath)} (${res.data.nodes.length} nodes, ${res.data.edges.length} edges) in ${res.data.stats.elapsed_ms}ms via ${res.data.stats.method}`);
+  console.log(`✅ Generated ${path.relative(targetDir, res.htmlPath)}`);
+  if (blastFile) {
+    const blast = getBlastRadius(blastFile, res.data);
+    console.log(`\n💥 Blast-radius for ${blastFile}:`);
+    if (blast.affected.length === 0) console.log("  (none)");
+    else for (const f of blast.affected) console.log(`  • ${f}`);
+  } else {
+    // Default example
+    const blast = getBlastRadius("lib/accounts.ex", res.data);
+    if (blast.affected.length > 0) {
+      console.log(`\n💥 Example blast-radius lib/accounts.ex → ${blast.affected.length} terdampak: ${blast.affected.slice(0,5).join(", ")}${blast.affected.length>5?" …":""}`);
+    }
+  }
+}
+
+async function handleSweep(flags: string[]) {
+  const targetDir = process.cwd();
+  const dryRun = flags.includes("--dry-run");
+  console.log(`\n🧹 Running Sweep (deferred P2 → ready-for-dev) in: ${targetDir}${dryRun?" [dry-run]":""}`);
+  const { sweep, loadDeferredEntries } = await import("./sweep");
+  const entries = await loadDeferredEntries(targetDir);
+  console.log(`📋 Deferred entries: ${entries.length} (open P2: ${entries.filter(e=>e.status==="open"&&e.priority==="P2").length})`);
+  const res = await sweep(targetDir, { dryRun });
+  if (res.promoted.length === 0) {
+    console.log("ℹ️ No entries promoted.");
+  } else {
+    console.log(`✅ Promoted ${res.promoted.length} to ready-for-dev: ${res.promoted.join(", ")}`);
+  }
+  if (res.alreadyReady.length > 0) console.log(`⏭️ Already ready: ${res.alreadyReady.join(", ")}`);
+}
+
+async function handleDoc(_flags: string[]) {
+  const targetDir = process.cwd();
+  console.log(`\n📚 Generating Diátaxis docs deterministically in: ${targetDir}`);
+  const { generateDocs } = await import("./dokumentasi");
+  const res = await generateDocs(targetDir);
+  console.log(`✅ Docs generated: ${res.files.length} files across 4 quadrants`);
+  for (const f of res.files) console.log(`  • ${path.relative(targetDir, f)}`);
+  if (res.issues.length > 0) {
+    console.log(`⚠️ ${res.issues.length} issues:`);
+    for (const i of res.issues) console.log(`  • ${i}`);
+  }
+}
+
+async function handleInspeksi(_flags: string[]) {
+  const targetDir = process.cwd();
+  console.log(`\n🔍 Running Inspeksi 4-pilar scorecard in: ${targetDir}`);
+  const { runInspeksi } = await import("./inspeksi");
+  const res = await runInspeksi(targetDir);
+  console.log(`\n📊 Scorecard 4 Pilar:`);
+  console.log(`  • Batas (Boundary): ${res.scores.batas}/100`);
+  console.log(`  • Performa: ${res.scores.performa}/100`);
+  console.log(`  • Keamanan: ${res.scores.keamanan}/100`);
+  console.log(`  • Docs: ${res.scores.docs}/100`);
+  console.log(`  • Overall: ${res.scores.overall}/100`);
+  console.log(`✅ Report: ${path.relative(targetDir, res.reportPath)}`);
+}
+
+export async function handleStory(flags: string[], repoRoot?: string) {
+  const targetDir = repoRoot || process.cwd();
+  let storyId: string | null = null;
+  let dryRun = false;
+  let force = false;
+
+  for (let i = 0; i < flags.length; i++) {
+    const f = flags[i];
+    if (f === "--dry-run") {
+      dryRun = true;
+    } else if (f === "--force") {
+      force = true;
+    } else if (f === "--story" && flags[i + 1]) {
+      storyId = flags[i + 1];
+      i++;
+    } else if (f.startsWith("--story=")) {
+      storyId = f.split("=")[1];
+    } else if (!f.startsWith("-") && !storyId) {
+      storyId = f;
+    }
+  }
+
+  if (!storyId) {
+    console.error("❌ Error: Story ID is required. Example: ompimpa story D-01");
+    process.exit(1);
+  }
+
+  try {
+    const result = await generateStorySpec(storyId, { repoRoot: targetDir, dryRun, force });
+
+    console.log(`\n📝 JIT Story Spec Generator (/ompimpa:story) — H. Agus Salim (ompimpa-prd)`);
+    console.log(`Story: ${result.storyId} (${result.epicId})`);
+    if (dryRun) {
+      console.log(`🔍 [DRY-RUN] Pratinjau spesifikasi untuk ${result.storyId}:\n`);
+      console.log(result.content);
+    } else {
+      console.log(`✅ Generated JIT Spec: ${path.relative(targetDir, result.specFilePath)}`);
+      const scenarioCount = (result.gherkinScenarios.match(/Scenario:/g) || []).length;
+      console.log(`   • Skenario Gherkin: ${scenarioCount} skenario (TEA-01 ready)`);
+      console.log(`   • Signatures: ${result.signatures.length} fungsi`);
+      console.log(`   • Target Files: ${result.targetFiles.length} berkas implementasi`);
+      console.log(`   • Test Files: ${result.testFiles.length} berkas uji ATDD`);
+      console.log(`   • Blast Radius: ${result.blastRadius.method} (${result.blastRadius.affectedCallers.length} callers terdampak)`);
+      console.log(`👉 Next step: Jalankan \`/atdd ${result.storyId}\` (Tuanku Imam Bonjol) untuk scaffolding tes merah.`);
+    }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`❌ Error: ${msg}`);
+    process.exit(1);
+  }
+}
+
+export async function handleCode(flags: string[], repoRoot?: string): Promise<void> {
+  const targetDir = repoRoot || process.cwd();
+  let storyId: string | null = null;
+  let circuitBreakerMax = 3;
+
+  for (let i = 0; i < flags.length; i++) {
+    const f = flags[i];
+    if ((f === "--story" || f === "-s") && flags[i + 1]) {
+      storyId = flags[i + 1];
+      i++;
+    } else if (f.startsWith("--story=")) {
+      storyId = f.split("=")[1];
+    } else if (f === "--circuit-breaker" && flags[i + 1]) {
+      circuitBreakerMax = parseInt(flags[i + 1], 10) || 3;
+      i++;
+    } else if (f.startsWith("--circuit-breaker=")) {
+      circuitBreakerMax = parseInt(f.split("=")[1], 10) || 3;
+    } else if (!f.startsWith("-") && !storyId) {
+      storyId = f;
+    }
+  }
+
+  if (!storyId) {
+    console.error("❌ Error: Story ID is required. Example: ompimpa code D-02");
+    process.exit(1);
+  }
+
+  // Validate INV-09: SPEC-[storyId].md must exist
+  const specPath = path.join(targetDir, "_ompimpa", "specs", `SPEC-${storyId}.md`);
+  const specExists = await fileExists(specPath);
+  if (!specExists) {
+    console.error(`❌ Invariant Violation (INV-09): Berkas spesifikasi mikro belum ada di ${path.relative(targetDir, specPath)}.`);
+    console.error(`👉 Jalankan 'ompimpa story ${storyId}' terlebih dahulu sebelum memulai koding.`);
+    process.exit(1);
+  }
+
+  console.log(`\n💻 OMP-IMPA Green-Phase Code Implementation (/code ${storyId})`);
+  console.log(`Story: ${storyId}`);
+  console.log(`Spec: ${path.relative(targetDir, specPath)} (INV-09 verified)`);
+  console.log(`Circuit Breaker: Max ${circuitBreakerMax} retry cycles before human escalation`);
+  console.log(`Stack Specialists: ompimpa-ash, ompimpa-ecto, ompimpa-liveview, ompimpa-oban, ompimpa-otp, ompimpa-ui`);
+  console.log(`Scoped Test Rule: Run only targeted tests for active slice; full mix test is prohibited during coding.`);
+  console.log(`👉 Next step: Setelah seluruh asersi hijau, jalankan '/review ${storyId}' (10 isolated reviewers).`);
+}
+
+export async function handleTriage(flags: string[], repoRoot?: string): Promise<void> {
+  const targetDir = repoRoot || process.cwd();
+  let storyId: string | null = null;
+  let strict = false;
+  let jsonOutput = false;
+
+  for (let i = 0; i < flags.length; i++) {
+    const f = flags[i];
+    if (f === "--strict") {
+      strict = true;
+    } else if (f === "--json") {
+      jsonOutput = true;
+    } else if ((f === "--story" || f === "-s") && flags[i + 1]) {
+      storyId = flags[i + 1];
+      i++;
+    } else if (f.startsWith("--story=")) {
+      storyId = f.split("=")[1];
+    } else if (!f.startsWith("-") && !storyId) {
+      storyId = f;
+    }
+  }
+
+  if (!storyId) {
+    console.error("❌ Error: Story ID is required. Example: ompimpa triage D-02");
+    process.exit(1);
+  }
+
+  try {
+    const result = await aggregateReviews(storyId, { targetDir });
+
+    if (jsonOutput) {
+      console.log(JSON.stringify(result, null, 2));
+      if (result.score.verdict !== "PASS" && strict) {
+        process.exit(1);
+      }
+      return;
+    }
+
+    console.log(`\n⚖️ OMP-IMPA Deterministic Triage (/triage ${storyId}) — Scorecard & Remediation`);
+    console.log(`Story: ${storyId}`);
+    console.log(`Score: ${result.score.score}/100 — Verdict: ${result.score.verdict === "PASS" ? "✅ PASS" : "🚫 REMEDIATE"}`);
+    console.log(`Raw Findings: ${result.findings.length} | Deduped Findings: ${result.deduped.length}`);
+    console.log(`Breakdown: P0/Critical: ${result.score.p0Count} (-30) | P1/High: ${result.score.p1Count} (-15) | P2/Medium-Low: ${result.score.p2Count}`);
+    if (result.missing.length > 0) {
+      console.log(`⚠️ Missing Reviewer Panels: ${result.missing.join(", ")} (penalized as P1 High)`);
+    }
+
+    if (result.remediation.length > 0) {
+      console.log(`\n📋 Remediation Plan (Ordered P0 → P1 → P2):`);
+      for (const item of result.remediation) {
+        const fileLoc = item.file ? (item.line ? `${item.file}:${item.line}` : item.file) : "global";
+        console.log(`  • [${item.severity}] ${item.ruleId} at ${fileLoc}: ${item.message || item.recommendation || item.rule_violation}`);
+        if (item.recommendation) {
+          console.log(`    ↳ Fix: ${item.recommendation}`);
+        }
+      }
+    } else {
+      console.log(`✨ Zero findings. Clean quality gate!`);
+    }
+
+    if (result.score.verdict !== "PASS") {
+      console.log(`\n👉 Action: Jalankan perbaikan kode lalu lakukan re-review sebelum memanggil /triage kembali.`);
+      if (strict) {
+        process.exit(1);
+      }
+    } else {
+      console.log(`\n👉 Next step: Siap untuk semantic commit dan pembaruan status ke done.`);
+    }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`❌ Error during triage: ${msg}`);
+    process.exit(1);
   }
 }
 
