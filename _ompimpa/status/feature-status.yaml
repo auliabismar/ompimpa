@@ -151,6 +151,13 @@ stories:
     epic: EPIC-E
     tea_tier: P1
     assignee: ompimpa-test
+  - id: E-03
+    title: "Master Diagnostic Out-of-Band (/ompimpa:inspect)"
+    status: done
+    retries: 0
+    epic: EPIC-E
+    tea_tier: P2
+    assignee: ompimpa-test
 # Kanban summary
-# backlog: 0 | ready-for-dev: 0 | in-progress: 0 | done: 21 (EPIC-A ✅ EPIC-B ✅ EPIC-C ✅ EPIC-D ✅ EPIC-E: E-01 ✅ E-02 ✅)
-# Next: EPIC-E (In-Band TEA & Master Diagnostic) -> E-03
+# backlog: 0 | ready-for-dev: 0 | in-progress: 0 | done: 22 (EPIC-A ✅ EPIC-B ✅ EPIC-C ✅ EPIC-D ✅ EPIC-E: E-01 ✅ E-02 ✅ E-03 ✅)
+# Status: Seluruh story di EPIC-A, EPIC-B, EPIC-C, EPIC-D, dan EPIC-E tuntas 100%!

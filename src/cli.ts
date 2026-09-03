@@ -196,8 +196,9 @@ export async function main() {
     case "doc":
       await handleDoc(args.slice(1));
       break;
+    case "inspect":
     case "inspeksi":
-      await handleInspeksi(args.slice(1));
+      await handleInspect(args.slice(1));
       break;
     case "story":
       await handleStory(args.slice(1));
@@ -240,7 +241,8 @@ Commands:
   graphify  Generate _ompimpa/graph.json + graph.html blast-radius (C-01)
   sweep     Promote deferred P2 entries to ready-for-dev (C-02)
   doc       Generate Diátaxis docs deterministically (C-05)
-  inspeksi  Generate 4-pilar scorecard 0–100 (C-06)
+  inspect   Run unified master diagnostic out-of-band & auto-generate EPIC-DEBT (E-03)
+  inspeksi  Alias for inspect (C-06 & E-03)
   story     Generate JIT micro specification (_ompimpa/specs/SPEC-[ID].md) before ATDD (D-01)
   code      Execute green-phase code implementation by stack specialist (D-02)
   triage    Run deterministic deduplication & 100/100 scoring scorecard (D-02)
@@ -1042,18 +1044,13 @@ async function handleDoc(_flags: string[]) {
   }
 }
 
-async function handleInspeksi(_flags: string[]) {
-  const targetDir = process.cwd();
-  console.log(`\n🔍 Running Inspeksi 4-pilar scorecard in: ${targetDir}`);
-  const { runInspeksi } = await import("./inspeksi");
-  const res = await runInspeksi(targetDir);
-  console.log(`\n📊 Scorecard 4 Pilar:`);
-  console.log(`  • Batas (Boundary): ${res.scores.batas}/100`);
-  console.log(`  • Performa: ${res.scores.performa}/100`);
-  console.log(`  • Keamanan: ${res.scores.keamanan}/100`);
-  console.log(`  • Docs: ${res.scores.docs}/100`);
-  console.log(`  • Overall: ${res.scores.overall}/100`);
-  console.log(`✅ Report: ${path.relative(targetDir, res.reportPath)}`);
+export async function handleInspect(flags: string[], repoRoot?: string) {
+  const { handleInspect: runInspect } = await import("./inspeksi");
+  return runInspect(flags, repoRoot);
+}
+
+export async function handleInspeksi(flags: string[], repoRoot?: string) {
+  return handleInspect(flags, repoRoot);
 }
 
 export async function handleStory(flags: string[], repoRoot?: string) {

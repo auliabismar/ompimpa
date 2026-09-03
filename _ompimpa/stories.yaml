@@ -644,6 +644,7 @@ stories:
       - "commands/inspect.md # baru"
       - "src/inspeksi.ts"
       - "_ompimpa/inspeksi/"
+      - "test/inspect.test.ts # baru"
     ac:
       - id: AC-E03-1
         given: "codebase dipindai dengan /inspect"
