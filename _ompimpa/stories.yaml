@@ -15,6 +15,12 @@ epics:
   - id: EPIC-C
     title: "Knowledge & DX — Akselerator Institusional"
     description: "Graph blast-radius, deferred+sweep, pitfalls, wizard, docs generator, inspeksi 4-pilar."
+  - id: EPIC-D
+    title: "Outer Loop Driver & Command Modularization — Dekomposisi Fase & Eksekusi Otonom"
+    description: "Memecah /dev menjadi perintah fase atomik (/story, /atdd, /code, /review, /triage) dan outer CLI driver."
+  - id: EPIC-E
+    title: "In-Band TEA & Master Diagnostic — Mutu Asersi & Unifikasi /inspect"
+    description: "Traceability TEA-01, flaky/mutation guard, dan unifikasi audit ke /ompimpa:inspect."
 
 stories:
   - id: A-01
@@ -486,3 +492,163 @@ stories:
     kill_criteria: []
     estimate: "M"
     scoring_impact: "TEA-15, TEA-24, TEA-08"
+
+  - id: D-01
+    epic: EPIC-D
+    title: "Story JIT Spec Generator (/ompimpa:story)"
+    description: |
+      Implementasikan generator spesifikasi mikro just-in-time _ompimpa/specs/SPEC-[ID].md
+      sesaat sebelum koding/ATDD, memuat Gherkin presisi, signature fungsi, dan lazy xref blast-radius.
+    tea_tier: "P0"
+    priority: "P0"
+    depends_on: ["A-02"]
+    target_files:
+      - "commands/story.md # baru"
+      - "_ompimpa/specs/"
+      - "src/story_spec.ts # generator logic"
+      - "test/story_spec.test.ts # unit tests"
+    ac:
+      - id: AC-D01-1
+        given: "story ID valid di stories.yaml"
+        when: "ompimpa story <ID> dijalankan"
+        then: "file _ompimpa/specs/SPEC-[ID].md terbit dengan Gherkin dan signature fungsi"
+    kill_criteria: []
+    estimate: "S"
+    scoring_impact: "TEA-01, TEA-16"
+
+  - id: D-02
+    epic: EPIC-D
+    title: "Modular Commands (/code, /triage) & Refaktor /dev"
+    description: |
+      Buat commands/code.md, commands/triage.md, dan perbarui commands/dev.md
+      menjadi pipeline coordinator untuk fase atomik.
+    tea_tier: "P1"
+    priority: "P1"
+    depends_on: ["D-01"]
+    target_files:
+      - "commands/code.md # baru"
+      - "commands/triage.md # baru"
+      - "commands/dev.md"
+    ac:
+      - id: AC-D02-1
+        given: "developer memanggil /code atau /triage mandiri"
+        when: "perintah dieksekusi"
+        then: "berjalan modular tanpa memaksa seluruh siklus dev"
+    kill_criteria: []
+    estimate: "S"
+    scoring_impact: "TEA-29, TEA-30"
+
+  - id: D-03
+    epic: EPIC-D
+    title: "Penegakan 10 Isolated Reviewers Sejati (Anti-Mocking)"
+    description: |
+      Perbarui commands/review.md dengan batch tool task(isolated: true) 10 subagent
+      dan bersihkan mock regex inline di src/reviewer.ts:dispatchIsolatedReview().
+    tea_tier: "P0"
+    priority: "P0"
+    depends_on: ["B-01", "B-03"]
+    target_files:
+      - "commands/review.md"
+      - "src/reviewer.ts"
+      - "test/reviewer_isolated.test.ts"
+    ac:
+      - id: AC-D03-1
+        given: "review dijalankan"
+        when: "dispatchIsolatedReview dipanggil"
+        then: "10 JSON di _ompimpa/review/ ditulis murni oleh subagent, bukan inline prewalk mock"
+    kill_criteria: []
+    estimate: "M"
+    scoring_impact: "TEA-01, TEA-29"
+
+  - id: D-04
+    epic: EPIC-D
+    title: "Outer CLI Loop Runner (bin/ompimpa dev --epic)"
+    description: |
+      Implementasikan outer while-loop di terminal OS shell yang memanggil subprocess OMP bersih
+      per story dalam Epic hingga seluruh story done (fresh context, anti-rot).
+    tea_tier: "P0"
+    priority: "P0"
+    depends_on: ["D-02", "D-03"]
+    target_files:
+      - "src/cli.ts"
+      - "src/loop_runner.ts # baru"
+      - "test/cli_epic.test.ts"
+    ac:
+      - id: AC-D04-1
+        given: "ompimpa dev --epic <ID> --auto"
+        when: "dieksekusi di terminal"
+        then: "loop sekuensial per story dengan fresh process context hingga pass 100/100"
+    kill_criteria: []
+    estimate: "L"
+    scoring_impact: "TEA-16, TEA-26"
+
+  - id: E-01
+    epic: EPIC-E
+    title: "In-Band TEA-01 Traceability & Mutation Guard"
+    description: |
+      Implementasikan audit penelusuran 100% AC Gherkin vs test assertions di bmad_gap_verifier
+      dan deteksi asersi bodong (false greens) di src/triage.ts (Miss AC = High Finding).
+    tea_tier: "P1"
+    priority: "P1"
+    depends_on: ["D-01"]
+    target_files:
+      - "src/triage.ts"
+      - "agents/ompimpa-test.md"
+      - "skills/tea-testing/SKILL.md"
+    ac:
+      - id: AC-E01-1
+        given: "story spec memiliki 3 AC tapi tes hanya menguji 2 AC"
+        when: "review/triage dieksekusi"
+        then: "terdeteksi TEA-01 High Finding (-15) dan skor <100"
+    kill_criteria: []
+    estimate: "M"
+    scoring_impact: "TEA-01, TEA-08"
+
+  - id: E-02
+    epic: EPIC-E
+    title: "Flaky & Slow Test Hunter In-Band"
+    description: |
+      Tambahkan deteksi larangan Process.sleep dan ambang batas in-process LiveViewTest >50ms
+      pada reviewer ompimpa-test dan quality gate triage.
+    tea_tier: "P1"
+    priority: "P1"
+    depends_on: ["E-01"]
+    target_files:
+      - "src/reviewer.ts"
+      - "src/triage.ts"
+      - "rules/elixir-testing-speed.md"
+      - "test/tea_flaky_hunter.test.ts"
+    ac:
+      - id: AC-E02-1
+        given: "berkas tes memuat Process.sleep"
+        when: "review dijalankan"
+        then: "terdeteksi P1 High flaky-sleep finding"
+      - id: AC-E02-2
+        given: "pengujian durasi in-process LiveViewTest melebihi 50ms"
+        when: "pemeriksaan kecepatan pengujian dijalankan"
+        then: "terdeteksi P1 High slow-test finding"
+    kill_criteria: []
+    estimate: "S"
+    scoring_impact: "TEA-08, TEA-26"
+
+  - id: E-03
+    epic: EPIC-E
+    title: "Master Diagnostic Out-of-Band (/ompimpa:inspect)"
+    description: |
+      Unifikasi audit, boundaries, perf, dan techdebt ke dalam commands/inspect.md.
+      Hasil scan di-triage otomatis menjadi EPIC-DEBT di stories.yaml atau deferred.md.
+    tea_tier: "P2"
+    priority: "P2"
+    depends_on: ["A-03", "C-06"]
+    target_files:
+      - "commands/inspect.md # baru"
+      - "src/inspeksi.ts"
+      - "_ompimpa/inspeksi/"
+    ac:
+      - id: AC-E03-1
+        given: "codebase dipindai dengan /inspect"
+        when: "ditemukan P0/P1 boundaries atau perf issue"
+        then: "otomatis di-triage dan di-generate menjadi story perbaikan di stories.yaml"
+    kill_criteria: []
+    estimate: "M"
+    scoring_impact: "TEA-15, TEA-24, TEA-35"

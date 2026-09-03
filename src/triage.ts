@@ -240,6 +240,16 @@ export async function aggregateReviews(
   } catch {
     // Non-fatal if spec doesn't exist
   }
+  // In-band Flaky & Slow Test Hunter (E-02)
+  try {
+    const flakyAudit = await auditFlakyAndSlowTests(storyId, { repoRoot: targetDir });
+    if (flakyAudit && flakyAudit.findings.length > 0) {
+      findings.push(...flakyAudit.findings);
+    }
+  } catch {
+    // Non-fatal if error during scan
+  }
+
 
   const deduped = deduplicateFindings(findings);
   const score = calculateScore(deduped);
@@ -448,7 +458,7 @@ export function detectFalseGreens(content: string, filePath?: string): TriageFin
     const testTitle = testMatch[1];
     const testBody = testMatch[2];
     const stripped = testBody.replace(/#[^\n]*/g, "").trim();
-    const hasAssertion = /\b(?:assert|assert_|refute|refute_)\b/.test(stripped);
+    const hasAssertion = /\b(?:assert|refute)(?:_[a-zA-Z0-9_]+)?\b/.test(stripped);
     if (!hasAssertion) {
       const prefix = content.slice(0, testMatch.index);
       const testLine = prefix.split(/\r?\n/).length;
@@ -467,6 +477,254 @@ export function detectFalseGreens(content: string, filePath?: string): TriageFin
   }
 
   return findings;
+}
+
+/**
+ * E-02: Mendeteksi pola flaky pada berkas tes:
+ * - Process.sleep / :timer.sleep pada Elixir ExUnit
+ * - Arbitrary sleep / setTimeout pada TypeScript/JS
+ */
+export function detectFlakyPatterns(content: string, filePath?: string): TriageFinding[] {
+  const findings: TriageFinding[] = [];
+  const lines = content.split(/\r?\n/);
+  const isElixir = Boolean(filePath && (filePath.endsWith(".ex") || filePath.endsWith(".exs")));
+  const isTsJs = Boolean(
+    filePath &&
+      (filePath.endsWith(".ts") ||
+        filePath.endsWith(".js") ||
+        filePath.endsWith(".tsx") ||
+        filePath.endsWith(".jsx"))
+  );
+
+  let inBacktick = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lineNum = i + 1;
+    const trimmed = line.trim();
+
+    // Skip full comment lines
+    if (trimmed.startsWith("#") || trimmed.startsWith("//") || trimmed.startsWith("*")) {
+      continue;
+    }
+
+    // Track multi-line template literals in TS/JS
+    if (isTsJs) {
+      const backticks = (line.match(/(?<!\\)`/g) || []).length;
+      const wasInBacktick = inBacktick;
+      if (backticks % 2 !== 0) {
+        inBacktick = !inBacktick;
+      }
+      if (wasInBacktick) {
+        continue;
+      }
+    }
+
+    // Strip inline comments for inspection
+    let codePart = line;
+    if (isElixir) {
+      const firstHash = line.indexOf("#");
+      if (firstHash !== -1) {
+        const beforeHash = line.slice(0, firstHash);
+        const doubleQuotes = (beforeHash.match(/"/g) || []).length;
+        const singleQuotes = (beforeHash.match(/'/g) || []).length;
+        if (doubleQuotes % 2 === 0 && singleQuotes % 2 === 0) {
+          codePart = beforeHash;
+        }
+      }
+    } else {
+      codePart = line.split("//")[0];
+    }
+
+    // In TS/JS, strip inline template literals `...` before evaluating executable calls
+    if (isTsJs) {
+      codePart = codePart.replace(/`[^`]*`/g, '""');
+    }
+
+    let matchedSleep: string | null = null;
+    let colNum: number | null = null;
+
+    // 1. Elixir: Process.sleep or :timer.sleep (only for Elixir files or non-TS/JS context)
+    if (!isTsJs) {
+      const elixirSleepMatch = codePart.match(
+        /(?:^|[^\w])(Process\.sleep|:timer\.sleep)(?:\s*\(|\s+[@a-zA-Z0-9_:.])/
+      );
+      if (elixirSleepMatch) {
+        matchedSleep = elixirSleepMatch[1];
+        colNum = (elixirSleepMatch.index ?? 0) + elixirSleepMatch[0].indexOf(matchedSleep) + 1;
+      }
+    }
+
+    // 2. TypeScript / JS: setTimeout(...) or Bun.sleep(...) or standalone sleep(...)
+    if (!isElixir && !matchedSleep) {
+      const tsSleepMatch = codePart.match(/(?:^|[^\w.])(setTimeout|Bun\.sleep|sleep)\s*\(/);
+      if (tsSleepMatch) {
+        matchedSleep = tsSleepMatch[1];
+        colNum = (tsSleepMatch.index ?? 0) + tsSleepMatch[0].indexOf(matchedSleep) + 1;
+      }
+    }
+
+    if (matchedSleep) {
+      findings.push({
+        file: filePath || "unknown",
+        line: lineNum,
+        column: colNum,
+        ruleId: "TEA-08",
+        rule_violation: `TEA-08: ${matchedSleep} detected in test file (Flaky Test Hazard)`,
+        category: "Idioms, Testing & Maintainability",
+        severity: "High",
+        message: `Flaky test hazard detected: ${matchedSleep} used at line ${lineNum}. Prohibited by TEA-08 and rules/elixir-testing-speed.md`,
+        recommendation:
+          "Replace sleep with deterministic synchronization: assert_receive/2, render_change/2, or polling with timeout.",
+        sources: ["ompimpa-test"],
+      });
+    }
+  }
+
+  return findings;
+}
+
+export interface TestDurationRecord {
+  name: string;
+  file: string;
+  durationMs: number;
+  line?: number;
+}
+
+/**
+ * E-02: Memeriksa durasi eksekusi pengujian terhadap ambang batas kecepatan in-band (default 50ms)
+ */
+export function checkTestSpeed(
+  records: TestDurationRecord[],
+  thresholdMs: number = 50
+): TriageFinding[] {
+  const findings: TriageFinding[] = [];
+  for (const record of records) {
+    if (
+      Number.isFinite(record.durationMs) &&
+      record.durationMs >= 0 &&
+      record.durationMs > thresholdMs
+    ) {
+      findings.push({
+        file: record.file,
+        line: record.line ?? null,
+        column: null,
+        ruleId: "TEA-26",
+        rule_violation: "TEA-26: Test duration exceeds speed threshold",
+        category: "Reliability & Performance",
+        severity: "High",
+        message: `Slow test detected: '${record.name}' took ${record.durationMs}ms (threshold: ${thresholdMs}ms). LiveViewTest and in-process tests must execute in <= ${thresholdMs}ms.`,
+        recommendation: `Optimize test setup, eliminate database overhead, or use lightweight unit tests to keep runtime <= ${thresholdMs}ms.`,
+        sources: ["ompimpa-test"],
+      });
+    }
+  }
+  return findings;
+}
+
+export interface FlakyAuditOptions {
+  repoRoot?: string;
+  testFiles?: string[];
+  durations?: TestDurationRecord[];
+  speedThresholdMs?: number;
+}
+
+export interface FlakyAuditResult {
+  storyId: string;
+  flakyFindings: TriageFinding[];
+  slowFindings: TriageFinding[];
+  findings: TriageFinding[];
+}
+
+/**
+ * E-02: Mengaudit berkas pengujian terhadap pola flaky (Process.sleep) dan batas durasi >50ms secara in-band
+ */
+export async function auditFlakyAndSlowTests(
+  storyId: string,
+  opts: FlakyAuditOptions = {}
+): Promise<FlakyAuditResult> {
+  const repoRoot = opts.repoRoot || REPO_ROOT;
+  const thresholdMs = opts.speedThresholdMs ?? 50;
+  const flakyFindings: TriageFinding[] = [];
+  const slowFindings: TriageFinding[] = [];
+
+  const filesToScan: Array<{ file: string; content: string }> = [];
+
+  if (opts.testFiles && opts.testFiles.length > 0) {
+    for (const f of opts.testFiles) {
+      try {
+        const full = path.isAbsolute(f) ? f : path.join(repoRoot, f);
+        const content = await fs.readFile(full, "utf-8");
+        filesToScan.push({ file: f, content });
+      } catch {}
+    }
+  } else {
+    let targetFiles: string[] = [];
+    try {
+      const storiesYamlPath = path.join(repoRoot, "_ompimpa", "stories.yaml");
+      const yamlContent = await fs.readFile(storiesYamlPath, "utf-8");
+      const parsedData = yaml.parse(yamlContent);
+      const targetStory = storyId.toUpperCase().replace(/^STORY-/, "");
+      const storyEntry = parsedData?.stories?.find((s: any) => s.id === storyId || s.id === targetStory);
+      if (storyEntry && Array.isArray(storyEntry.target_files)) {
+        targetFiles = storyEntry.target_files
+          .map((f: string) => f.split("#")[0].trim())
+          .filter((f: string) => f.endsWith(".test.ts") || f.endsWith(".test.js") || f.endsWith("_test.exs") || f.endsWith(".spec.ts"));
+      }
+    } catch {}
+
+    if (targetFiles.length > 0) {
+      for (const f of targetFiles) {
+        try {
+          const full = path.isAbsolute(f) ? f : path.join(repoRoot, f);
+          const content = await fs.readFile(full, "utf-8");
+          filesToScan.push({ file: f, content });
+        } catch {}
+      }
+    } else {
+      const testDir = path.join(repoRoot, "test");
+      async function walkDir(dir: string) {
+        try {
+          const entries = await fs.readdir(dir, { withFileTypes: true });
+          for (const entry of entries) {
+            const res = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+              await walkDir(res);
+            } else if (
+              entry.isFile() &&
+              (entry.name.endsWith(".test.ts") ||
+               entry.name.endsWith(".test.js") ||
+               entry.name.endsWith(".spec.ts") ||
+               entry.name.endsWith("_test.exs"))
+            ) {
+              const rel = path.relative(repoRoot, res);
+              const content = await fs.readFile(res, "utf-8");
+              filesToScan.push({ file: rel, content });
+            }
+          }
+        } catch {}
+      }
+      await walkDir(testDir);
+    }
+  }
+
+  for (const item of filesToScan) {
+    const flakies = detectFlakyPatterns(item.content, item.file);
+    flakyFindings.push(...flakies);
+  }
+
+  if (opts.durations && opts.durations.length > 0) {
+    const slows = checkTestSpeed(opts.durations, thresholdMs);
+    slowFindings.push(...slows);
+  }
+
+  const allFindings = [...flakyFindings, ...slowFindings];
+  return {
+    storyId,
+    flakyFindings,
+    slowFindings,
+    findings: allFindings,
+  };
 }
 
 interface ParsedTestCase {
@@ -550,13 +808,14 @@ export function checkACTraceability(
     // Elixir: test "..." do ... end
     const elixirRegex = /test\s+["']([^"']+)["']\s*(?:,\s*[\s\S]*?)?\s*\bdo\b([\s\S]*?)\bend\b/g;
     while ((m = elixirRegex.exec(content)) !== null) {
+      const title = m[1];
       const body = m[2];
       const prefix = content.slice(0, m.index);
       const startLine = prefix.split(/\r?\n/).length;
       const endLine = startLine + m[0].split(/\r?\n/).length - 1;
       const hasFG = falseGreens.some((fg) => fg.file === tf.file && fg.line != null && fg.line >= startLine && fg.line <= endLine);
       const stripped = body.replace(/#[^\n]*/g, "").trim();
-      const hasAssertion = /\b(?:assert|assert_|refute|refute_)\b/.test(stripped);
+      const hasAssertion = /\b(?:assert|refute)(?:_[a-zA-Z0-9_]+)?\b/.test(stripped);
       const hasSubstantive = hasAssertion && !hasFG;
       parsedTests.push({ title, file: tf.file, startLine, endLine, hasAssertion, hasSubstantive, hasFalseGreen: hasFG });
     }

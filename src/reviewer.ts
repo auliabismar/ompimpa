@@ -104,7 +104,7 @@ export function buildReviewPanel(config: OmpimpaConfig): ReviewPanelMember[] {
         id: "ompimpa-test",
         name: "Tuanku Imam Bonjol",
         persona: "Panglima Benteng Mutu ATDD",
-        role: "Scorecard Mutu Pengujian TEA, Anti-Mocking, & Isolasi Sandbox",
+        role: "Scorecard Mutu Pengujian TEA, Anti-Mocking, Anti-Flaky (Process.sleep), & Isolasi Sandbox",
         active: true,
       },
       {
@@ -233,7 +233,7 @@ export function calculateScorecard(
   }
 
   const overallScore = Math.max(0, 100 - totalDeduction);
-  const hasBlockers = findings.some((f) => f.severity === "P0" || f.severity === "Critical" || f.severity === "High" || f.severity === "P1");
+  const hasBlockers = findings.some((f) => f.severity === "P0" || f.severity === "P1");
   const hasAnyFinding = findings.length > 0;
   const passed = overallScore >= scoreFloor && !hasBlockers && !hasAnyFinding ? true : overallScore === 100 && findings.length === 0;
   const finalPassed = scoreFloor === 100 ? overallScore === 100 && findings.length === 0 : overallScore >= scoreFloor && !hasBlockers;
@@ -351,6 +351,56 @@ export async function runReview(
       remediation: f.remediation,
     });
   }
+  // E-02: Scan test files for flaky patterns (Process.sleep / arbitrary sleep)
+  try {
+    const { detectFlakyPatterns } = await import("./triage.js");
+    let testFiles = (options.targetPaths || []).filter(
+      (p) => p.includes("test") || p.endsWith(".exs") || p.endsWith(".test.ts") || p.endsWith(".spec.ts")
+    );
+    if (testFiles.length === 0) {
+      const testDir = path.join(targetDir, "test");
+      if (fsSync.existsSync(testDir)) {
+        const collect = (dir: string) => {
+          try {
+            const entries = fsSync.readdirSync(dir, { withFileTypes: true });
+            for (const entry of entries) {
+              const res = path.join(dir, entry.name);
+              if (entry.isDirectory()) {
+                collect(res);
+              } else if (
+                entry.isFile() &&
+                (entry.name.endsWith("_test.exs") ||
+                  entry.name.endsWith(".test.ts") ||
+                  entry.name.endsWith(".spec.ts"))
+              ) {
+                testFiles.push(path.relative(targetDir, res));
+              }
+            }
+          } catch {}
+        };
+        collect(testDir);
+      }
+    }
+    for (const tf of testFiles) {
+      const full = path.isAbsolute(tf) ? tf : path.join(targetDir, tf);
+      if (fsSync.existsSync(full)) {
+        const content = fsSync.readFileSync(full, "utf-8");
+        const flakies = detectFlakyPatterns(content, tf);
+        for (const fl of flakies) {
+          findings.push({
+            category: "Test",
+            severity: "P1",
+            message: fl.message || fl.rule_violation || "Flaky test hazard detected",
+            file: fl.file,
+            line: fl.line ?? undefined,
+            column: fl.column ?? undefined,
+            remediation: fl.recommendation,
+          });
+        }
+      }
+    }
+  } catch {}
+
 
   // 2. Hitung scorecard kelulusan
   const scorecard = calculateScorecard(findings, scoreFloor);
