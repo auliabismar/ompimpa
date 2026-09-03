@@ -20,13 +20,15 @@ if git diff --cached | grep -E "String\.to_atom\(" > /dev/null 2>&1; then
   exit 1
 fi
 
-# 2. Kompilasi Strict (Inkremental)
-echo "⚙️ [2/3] Memeriksa kompilasi strict (warnings as errors)..."
-mix compile --warnings-as-errors
-
-# 3. Format Kode
-echo "✨ [3/3] Memeriksa format kode Elixir..."
-mix format --check-formatted
-
+# 2. Kompilasi Strict (Inkremental) & Format Kode jika proyek Phoenix (mix.exs ada)
+if [ -f mix.exs ]; then
+  echo "⚙️ [2/3] Memeriksa kompilasi strict (warnings as errors)..."
+  mix compile --warnings-as-errors
+  echo "✨ [3/3] Memeriksa format kode Elixir..."
+  mix format --check-formatted
+else
+  echo "⚙️ [2/3] Proyek non-mix / tooling root — melewati mix compile."
+  echo "✨ [3/3] Melewati mix format."
+fi
 echo "🏆 [OMP-IMPA] Fast Pre-Commit Guard Lolos 100%!"
 exit 0

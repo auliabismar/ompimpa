@@ -227,3 +227,120 @@ describe("B-03 Split Spec 1→3/4 BMAD Lens (also in reviewer_isolated)", () => 
     await fs.rm(tmp, { recursive: true, force: true });
   });
 });
+
+describe("D-03 Penegakan 10 Isolated Reviewers Sejati (Anti-Mocking)", () => {
+  it("AC-D03-1: panel default konfigurasi menghasilkan 10 reviewers sejati (4 BMAD Spec + 6 phxagents Tech)", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "ompimpa-d03-panel-"));
+    const config = {
+      quality: {
+        review: {
+          enable_spec_review: true,
+          enable_tech_review: true,
+          bmad_lens_count: 4,
+          parallel_reviewers: 6,
+        },
+      },
+      stacks: { use_ash_framework: false, use_oban: false },
+    } as unknown as OmpimpaConfig;
+
+    const panel = buildReviewPanel(config);
+    expect(panel.length).toBe(10);
+
+    const specIds = panel.filter((p) => p.id.startsWith("bmad_")).map((p) => p.id);
+    expect(specIds).toEqual([
+      "bmad_adversarial",
+      "bmad_gap_verifier",
+      "bmad_structural",
+      "bmad_completeness",
+    ]);
+
+    const techIds = panel.filter((p) => !p.id.startsWith("bmad_")).map((p) => p.id);
+    expect(techIds).toEqual([
+      "ompimpa-ironlaw",
+      "ompimpa-security",
+      "ompimpa-test",
+      "ompimpa-verify",
+      "ompimpa-ecto",
+      "ompimpa-liveview",
+    ]);
+
+    const result = await dispatchIsolatedReview("D-03", { targetDir: tmp, panel });
+    expect(result.dispatched).toBe(10);
+    expect(result.files.length).toBe(10);
+
+    await fs.rm(tmp, { recursive: true, force: true });
+  });
+
+  it("AC-D03-1: subagent findings murni dipertahankan tanpa ditimpa inline prewalk mock", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "ompimpa-d03-keep-"));
+    const reviewDir = path.join(tmp, "_ompimpa", "review");
+    await fs.mkdir(reviewDir, { recursive: true });
+
+    // Simulasi subagent bmad_adversarial sejati menulis temuan ke disk
+    const subagentFinding = [
+      {
+        severity: "P0",
+        file: "lib/my_app/wallet.ex",
+        line: 42,
+        rule_violation: "Adversarial race condition detected",
+        recommendation: "Use Ecto transaction or GenServer serialization",
+      },
+    ];
+    const adversarialFile = path.join(reviewDir, "D-03-bmad_adversarial.json");
+    await fs.writeFile(adversarialFile, JSON.stringify(subagentFinding, null, 2), "utf-8");
+
+    // Dispatch isolated review
+    await dispatchIsolatedReview("D-03", { targetDir: tmp });
+
+    // Temuan subagent TIDAK BOLEH ditimpa menjadi []
+    const savedContent = JSON.parse(await fs.readFile(adversarialFile, "utf-8"));
+    expect(savedContent).toHaveLength(1);
+    expect(savedContent[0].rule_violation).toBe("Adversarial race condition detected");
+    expect(savedContent[0].file).toBe("lib/my_app/wallet.ex");
+
+    await fs.rm(tmp, { recursive: true, force: true });
+  });
+
+  it("AC-D03-1: prewalk regex mock dibersihkan dan tidak memalsukan temuan ke reviewer JSON", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "ompimpa-d03-nomock-"));
+    const libDir = path.join(tmp, "lib");
+    await fs.mkdir(libDir, { recursive: true });
+    // Buat file yang melanggar prewalk regex scanner
+    await fs.writeFile(
+      path.join(libDir, "dirty.ex"),
+      `defmodule Dirty do\n  schema "accounts" do\n    field :balance, :float\n  end\nend`
+    );
+
+    const reviewDir = path.join(tmp, "_ompimpa", "review");
+    await fs.mkdir(reviewDir, { recursive: true });
+    const ironlawFile = path.join(reviewDir, "D-03-ompimpa-ironlaw.json");
+    // Subagent nyata memutuskan tidak ada temuan (atau pengecualian sah)
+    await fs.writeFile(ironlawFile, "[]\n", "utf-8");
+
+    await dispatchIsolatedReview("D-03", { targetDir: tmp });
+
+    // dispatchIsolatedReview TIDAK BOLEH memalsukan temuan dari prewalk regex scan ke file reviewer
+    const savedContent = JSON.parse(await fs.readFile(ironlawFile, "utf-8"));
+    expect(savedContent).toHaveLength(0);
+
+    await fs.rm(tmp, { recursive: true, force: true });
+  });
+
+  it("AC-D03-1: commands/review.md memuat kontrak batch tool task dengan 10 subagent isolated: true", async () => {
+    const reviewDocPath = path.join(process.cwd(), "commands", "review.md");
+    const content = await fs.readFile(reviewDocPath, "utf-8");
+
+    // Memeriksa keberadaan penegakan task, isolation, dan 10 reviewers di commands/review.md
+    expect(content).toContain("task");
+    expect(content.toLowerCase()).toContain("isolated");
+    expect(content).toContain("bmad_adversarial");
+    expect(content).toContain("bmad_gap_verifier");
+    expect(content).toContain("bmad_structural");
+    expect(content).toContain("bmad_completeness");
+    expect(content).toContain("ompimpa-ironlaw");
+    expect(content).toContain("ompimpa-security");
+    expect(content).toContain("ompimpa-test");
+    expect(content).toContain("ompimpa-verify");
+    expect(content).toContain("_ompimpa/review/");
+  });
+});

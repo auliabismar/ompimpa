@@ -69,47 +69,67 @@ stories:
     assignee: ompimpa-prd
   - id: C-01
     title: "Graphify Blast-Radius via mix xref"
-    status: backlog  # paused — epic/story only, belum ready-for-dev
+    status: done
     retries: 0
     epic: EPIC-C
     tea_tier: P0
     assignee: ompimpa-ecto
   - id: C-02
     title: "Deferred-Work + ompimpa sweep"
-    status: backlog  # paused — epic/story only, belum ready-for-dev
+    status: done
     retries: 0
     epic: EPIC-C
     tea_tier: P2
     assignee: ompimpa-prd
   - id: C-03
     title: "Pitfalls Auto-Append"
-    status: backlog  # paused — epic/story only, belum ready-for-dev
+    status: done
     retries: 0
     epic: EPIC-C
     tea_tier: P2
     assignee: ompimpa-test
   - id: C-04
     title: "Setup Wizard Greenfield/Brownfield"
-    status: backlog  # paused — epic/story only, belum ready-for-dev
+    status: done
     retries: 0
     epic: EPIC-C
     tea_tier: P2
     assignee: ompimpa-prd
   - id: C-05
     title: "Docs Generator Deterministik"
-    status: backlog  # paused — epic/story only, belum ready-for-dev
+    status: done
     retries: 0
     epic: EPIC-C
     tea_tier: P2
     assignee: ompimpa-doc
   - id: C-06
     title: "Inspeksi 4-Pilar Scorecard"
-    status: backlog  # paused — epic/story only, belum ready-for-dev
+    status: done
     retries: 0
     epic: EPIC-C
     tea_tier: P2
     assignee: ompimpa-test
-
+  - id: D-01
+    title: "Story JIT Spec Generator (/ompimpa:story)"
+    status: done
+    retries: 0
+    epic: EPIC-D
+    tea_tier: P0
+    assignee: ompimpa-prd
+  - id: D-02
+    title: "Modular Commands (/code, /triage) & Refaktor /dev"
+    status: done
+    retries: 0
+    epic: EPIC-D
+    tea_tier: P1
+    assignee: ompimpa-dev
+  - id: D-03
+    title: "Penegakan 10 Isolated Reviewers Sejati (Anti-Mocking)"
+    status: done
+    retries: 0
+    epic: EPIC-D
+    tea_tier: P0
+    assignee: ompimpa-review
 # Kanban summary
-# backlog: 6 | ready-for-dev: 0 | in-progress: 0 | done: 9 (EPIC-A ✅ EPIC-B ✅)
-# Next: C-01 (deps A-02 done) → C-02/C-03 → C-04/C-05/C-06 ...
+# backlog: 0 | ready-for-dev: 1 | in-progress: 0 | done: 18 (EPIC-A ✅ EPIC-B ✅ EPIC-C ✅ EPIC-D in-progress: D-01 ✅ D-02 ✅ D-03 ✅)
+# Next: D-04 (Outer CLI Loop Runner)

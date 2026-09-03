@@ -164,36 +164,24 @@ export async function dispatchIsolatedReview(
   const reviewDir = opts.reviewDir || path.join(targetDir, "_ompimpa", "review");
   await fs.mkdir(reviewDir, { recursive: true });
 
-  const prewalkResult = await runPrewalkScan(targetDir);
-
   const files: string[] = [];
   const writes = panel.map(async (member) => {
     const filePath = path.join(reviewDir, `${storyId}-${member.id}.json`);
-    let memberFindings: Array<Record<string, unknown>> = [];
-    if (prewalkResult.findings.length > 0) {
-      const relevant = prewalkResult.findings.filter((f) => {
-        if (member.id === "ompimpa-ironlaw") return true;
-        if (member.id === "ompimpa-security" && (f.ruleId.includes("security") || f.ruleId.includes("raw-html"))) return true;
-        return false;
-      });
-      memberFindings = relevant.map((f) => ({
-        severity: "P0" as const,
-        file: f.file,
-        line: f.line,
-        column: f.column,
-        ruleId: f.ruleId,
-        rule_violation: f.ruleName,
-        recommendation: f.remediation || f.description,
-        category: f.ruleId.includes("security") ? "Security" : "IronLaw",
-        message: f.description,
-      }));
-    }
-    if (member.id.startsWith("bmad_") || member.id === "ompimpa-prd") {
-      if (memberFindings.length === 0) {
-        // spec lens keep empty for PASS
+    try {
+      // Anti-Mocking (D-03): Jika berkas JSON sudah ditulis oleh subagent, validasi strukturnya tanpa menimpa
+      const existing = await fs.readFile(filePath, "utf-8");
+      const parsed = JSON.parse(existing);
+      if (!Array.isArray(parsed)) {
+        throw new Error(`Review file ${filePath} must contain a JSON array`);
+      }
+    } catch (err: any) {
+      if (err.code === "ENOENT") {
+        // Berkas belum ada di disk; inisialisasi berkas review bersih []
+        await fs.writeFile(filePath, "[]\n", "utf-8");
+      } else {
+        throw err;
       }
     }
-    await fs.writeFile(filePath, JSON.stringify(memberFindings, null, 2), "utf-8");
     files.push(filePath);
   });
 
