@@ -50,17 +50,28 @@ target_phoenix_project/
 ├── .git/hooks/pre-commit              # [LOCAL ONLY] Fast Pre-Commit Quality Gate (<2s)
 │
 ├── _ompimpa/                          # [TRACKED IN GIT - ARTEFAK INTERNAL TATA KELOLA AI]
+│   ├── stories.yaml                   # [GIT] Master DAG stories, topologis, dependensi, & kill criteria
+│   ├── criteria_registry_35.json      # [GIT] Single source of truth scoring 100/100 (5 dimensi, 35 kriteria)
+│   ├── deferred.md                    # [GIT] Perekam deferred work & hutang teknis di luar scope aktif
+│   ├── graph.json & graph.html        # [GIT] Graf blast-radius dependensi modul mix xref + LSP
 │   ├── status/
-│   │   └── feature-status.yaml        # [GIT] State roadmap mesin & status tiap slice
+│   │   └── feature-status.yaml        # [GIT] State roadmap mesin & status tiap slice (ready/in-progress/done)
+│   ├── specs/
+│   │   └── SPEC-[ID].md               # [GIT] Spesifikasi mikro Just-In-Time (JIT) per story
+│   ├── review/
+│   │   └── [ID]-[agent].json          # [GIT] Rekaman hasil audit 10 subagent isolated review sejati
 │   ├── prd/
 │   │   └── PRD-[ID]-[nama].md         # [GIT] Dokumen Master PRD & Epics Spine
 │   ├── adr/
 │   │   └── ADR-[NUM]-[judul].md       # [GIT] Keputusan arsitektur berstandar MADR
+│   ├── balairung/
+│   │   └── BALAIRUNG-[TGL]-[topik].md # [GIT] Risalah resmi sidang majelis balairung multi-turn
+│   ├── inspeksi/
+│   │   └── report.md                  # [GIT] Laporan audit master diagnostic 4-pilar out-of-band
 │   ├── ideation/
-│   │   └── IDEATION-[ID].md           # [GIT] Ringkasan musyawarah & analisis TRIZ
+│   │   └── IDEATION-[ID].md           # [GIT] Ringkasan musyawarah SCAMPER & analisis TRIZ
 │   └── solutions/
 │       └── SOL-[ID]-[slug].md         # [GIT] Memori institusional perbaikan bug teruji
-│
 └── docs/                              # [TRACKED IN GIT - DOKUMENTASI DIÁTAXIS RESMI PROYEK]
     ├── tutorials/                     # [GIT] Panduan belajar langkah demi langkah pengguna baru
     ├── how-to/                        # [GIT] Panduan menyelesaikan tugas spesifik aplikasi

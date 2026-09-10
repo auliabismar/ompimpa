@@ -46,8 +46,10 @@ OMP-IMPA memisahkan tanggung jawab pemeriksaan secara presisi pada setiap fase e
 [4. SELESAI 1 FITUR / PR]
        │
        ▼
-[TIER 3: DUAL-REVIEW & VERIFY] ──► 1. /ompimpa:review: Dual-Review (Spec Review Agus Salim + Panel 6 Spesialis)
-                                   2. /ompimpa:verify: Full `mix test` + Credo Strict + Sobelow Security
+[TIER 3: DUAL-REVIEW 10 SUBAGENT & TIERED VERIFY]
+       ├── 1. /ompimpa:review: Panel 10 Subagent Terisolasi (4 Lensa BMAD + 6 Spesialis phxagents)
+       ├── 2. Triage & Dedup Hash: file:line:ruleId + Scoring 100/100 (Criteria Registry 35)
+       └── 3. /ompimpa:verify: Tiered Verification (T1 <2s compile/format, T2 <10s test --stale, T3 bg credo/sobelow)
 ```
 
 ---
@@ -55,7 +57,7 @@ OMP-IMPA memisahkan tanggung jawab pemeriksaan secara presisi pada setiap fase e
 ## 3. Rincian Peran Tiap Tingkat (Tier Details)
 
 ### Tier 0 — TTSR Real-Time Stream Guard (In-Stream, 0-Token Waste)
-* **Tempat**: `rules/elixir-*.md`
+* **Tempat**: `rules/01-*.md` s/d `rules/26-*.md` (26 berkas modular 1:1)
 * **Waktu**: Saat token teks/kode sedang di-generate secara *streaming* oleh LLM.
 * **Tanggung Jawab**: Mendeteksi pola sintaksis fatal (misal: `:float` pada field harga/saldo, `String.to_atom/1`, `Phoenix.HTML.raw/1`, cross join implisit) sebelum kode menyentuh disk.
 * **Tindakan**: Langsung mengaborsi stream dan meminta model mengoreksi kode seketika.
@@ -78,14 +80,25 @@ OMP-IMPA memisahkan tanggung jawab pemeriksaan secara presisi pada setiap fase e
   3. Pemeriksaan format kode (`mix format --check-formatted`).
 * **Prinsip Utama**: **Sub-2-Detik**. Operasi `mix test` global **sengaja ditiadakan** di pre-commit agar proses commit tetap instan.
 
-### Tier 3 — Dual-Review & Full Verification Suite (`/ompimpa:verify`)
-* **Tempat**: Perintah eksplisit `/ompimpa:review` dan `/ompimpa:verify` (atau otomatis di akhir story saat `auto_macro_review_in_dev = true`).
-* **Waktu**: Di akhir story/fitur, sebelum commit final, sebelum merge branch, atau pada pipeline CI/CD.
+### Tier 3 — Dual-Review 10 Subagent & Tiered Verification (`/ompimpa:review` & `/verify`)
+* **Tempat**: Perintah eksplisit `/ompimpa:review` dan `/ompimpa:verify` (atau otomatis per story di `/ompimpa:dev`).
+* **Waktu**: Di akhir setiap story atau fitur, sebelum commit final, sebelum merge branch, atau pada pipeline CI/CD.
 * **Tanggung Jawab**:
-  1. **Spec Review (BMAD / BMM)**: Validasi diff terhadap Kriteria Penerimaan Gherkin di PRD, anti-scope-creep, dan deletion check (`ompimpa-prd` / `requirements-verifier`).
-  2. **Tech Review (phxagents)**: Audit semantik mendalam oleh panel 6-jalur (Hj. Rasuna Said, Bagindo Azizchan, Tuanku Imam Bonjol, Compiler, Ecto/Ash, LiveView/Oban).
-  3. Eksekusi menyeluruh seluruh rangkaian tes proyek (`mix test`), static analysis Credo (`mix credo --strict`), dan security audit Sobelow (`mix sobelow --config --exit`).
----
+  1. **Spec Review Terisolasi (4 Lensa BMAD)**:
+     - `bmad_adversarial`: Analisis potensi celah fungsional & abuse.
+     - `bmad_gap_verifier`: Audit ketertelusuran TEA-01 (100% Gherkin ACs terpetakan ke asersi tes).
+     - `bmad_structural`: Pengecekan modularitas direktori & batasan domain.
+     - `bmad_completeness`: Pengecekan kelengkapan implementasi tanpa sisa stub semu.
+  2. **Tech Review Terisolasi (6 phxagents Specialists)**:
+     - Audit semantik 26 Hukum Besi (`ompimpa-ironlaw`), keamanan (`ompimpa-security`), mutu tes $\ge 90$ & anti-flaky (`ompimpa-test`), kompilator strict (`ompimpa-verify`), database (`ompimpa-ecto`/`ash`), dan lifecycle memori (`ompimpa-liveview`/`oban`).
+  3. **Triage Collector & Scoring v2 100/100**:
+     - Seluruh temuan subagent direkam ke `_ompimpa/review/[ID]-[agent].json`.
+     - Dideduplikasi dengan hash `file:line:ruleId` mempertahankan keparahan tertinggi.
+     - Dinilai terhadap Criteria Registry 35-row dengan baseline 100 dan penalti (-30 Critical, -15 High, -5 Medium, -2 Low).
+  4. **Tiered Verification Model**:
+     - **Tier 1 (Inner Loop <2s)**: `mix compile --warnings-as-errors` + `mix format --check-formatted`.
+     - **Tier 2 (Per-Story Gate <10s)**: `mix test --stale` + 10 reviewers + triage.
+     - **Tier 3 (Background Audit)**: Full `mix test` + Credo Strict + Sobelow Security.
 
 ## 4. Matriks Perbandingan & Pencegahan Redundansi
 

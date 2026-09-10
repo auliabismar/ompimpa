@@ -189,7 +189,29 @@ features:
       const res = checkDevLoopContinuation(tempDir);
       expect(res).toBeUndefined();
     });
+    it("should return undefined if running under OMPIMPA_HARNESS=1", async () => {
+      const statusFile = path.join(tempDir, "_ompimpa", "status", "feature-status.yaml");
+      await fs.writeFile(
+        statusFile,
+        `
+features:
+  feature-1:
+    slices:
+      slice-1.1:
+        status: "ready-for-dev"
+`
+      );
 
+      const prev = process.env.OMPIMPA_HARNESS;
+      process.env.OMPIMPA_HARNESS = "1";
+      try {
+        const res = checkDevLoopContinuation(tempDir);
+        expect(res).toBeUndefined();
+      } finally {
+        if (prev === undefined) delete process.env.OMPIMPA_HARNESS;
+        else process.env.OMPIMPA_HARNESS = prev;
+      }
+    });
   });
   describe("ompimpaGuard factory registration", () => {
     it("should register event handlers with OMP event bus", () => {

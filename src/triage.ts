@@ -1,6 +1,8 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import yaml from "yaml";
+import { partitionTargetFiles } from "./story_spec";
+import type { HarnessResultMarker } from "./harness/omp_adapter";
 export interface TriageFinding {
   file?: string;
   line?: number | null;
@@ -15,6 +17,9 @@ export interface TriageFinding {
   sources?: string[];
   merged_sources?: number;
   penalty?: number;
+  /** Vonis verifikasi ala step-03 (ditulis sesi reviewer, bukan CLI). */
+  verdict?: string; // "high"|"medium"|"low"|"false"|"maybe-false"
+  evidence?: string;
 }
 
 export interface RegistryEntry {
@@ -136,6 +141,85 @@ export function remediationPlan(findings: TriageFinding[]): TriageFinding[] {
   return [...findings].sort((a, b) => severityRank(b.severity) - severityRank(a.severity));
 }
 
+function isVerifiedClean(
+  marker: HarnessResultMarker | undefined,
+  storyId: string,
+  reviewerId: string
+): boolean {
+  if (!marker || marker.completed !== true) return false;
+  if (marker.role !== "review" || marker.story !== storyId) return false;
+  const files = marker.files || [];
+  return files.includes(`${storyId}-${reviewerId}.json`);
+}
+
+/**
+ * Kontrak berkas review v2: envelope `{reviewer, story, completedAt, findings}`.
+ * Bare array = format legacy (temuan tetap dinilai; [] = slot reservasi, bukan bukti).
+ * Bersih terverifikasi ⟺ envelope findings:[] + marker sesi mencakup file.
+ */
+function isFindingsEnvelope(parsed: unknown): parsed is { findings: unknown[] } {
+  return (
+    parsed !== null &&
+    typeof parsed === "object" &&
+    !Array.isArray(parsed) &&
+    "findings" in parsed &&
+    Array.isArray(parsed.findings)
+  );
+}
+
+export function isEnvelopeCleanReport(parsed: unknown, storyId: string, reviewerId: string): boolean {
+  if (!isFindingsEnvelope(parsed)) return false;
+  if (parsed.findings.length !== 0) return false;
+  if (!("story" in parsed) || typeof parsed.story !== "string" || parsed.story !== storyId) return false;
+  if (!("reviewer" in parsed) || typeof parsed.reviewer !== "string" || parsed.reviewer !== reviewerId) return false;
+  return true;
+}
+
+function strField(rec: Record<string, unknown>, key: string): string | undefined {
+  const value: unknown = rec[key];
+  return typeof value === "string" ? value : undefined;
+}
+
+function numField(rec: Record<string, unknown>, key: string): number | null {
+  const value: unknown = rec[key];
+  return typeof value === "number" ? value : null;
+}
+
+function mapReviewEntry(entry: unknown, reviewerId: string): TriageFinding | null {
+  if (typeof entry !== "object" || entry === null) return null;
+  const rec: Record<string, unknown> = entry as Record<string, unknown>;
+  const ruleId = strField(rec, "ruleId") || strField(rec, "rule_violation") || "unknown";
+  const sev = strField(rec, "severity") || strField(rec, "default_severity") || "Low";
+  return {
+    file: strField(rec, "file"),
+    line: numField(rec, "line"),
+    column: numField(rec, "column"),
+    ruleId,
+    rule_violation: strField(rec, "rule_violation") || strField(rec, "ruleId"),
+    category: strField(rec, "category"),
+    severity: sev,
+    message: strField(rec, "message") || strField(rec, "recommendation") || strField(rec, "rule_violation"),
+    recommendation: strField(rec, "recommendation") || strField(rec, "remediation"),
+    remediation: strField(rec, "remediation") || strField(rec, "recommendation"),
+    verdict: strField(rec, "verdict"),
+    evidence: strField(rec, "evidence"),
+    sources: [reviewerId],
+  };
+}
+
+function noEvidenceFinding(storyId: string, reviewerId: string, reason: string): TriageFinding {
+  return {
+    file: "global",
+    line: null,
+    ruleId: `reviewer-no-evidence-${reviewerId}`,
+    rule_violation: `reviewer without evidence: ${reviewerId}`,
+    category: "Spec",
+    severity: "High",
+    message: `reviewer without evidence: ${reviewerId} (${reason})`,
+    recommendation: `Run a genuine review session for ${storyId} so reviewer ${reviewerId} writes verified findings`,
+    sources: [reviewerId],
+  };
+}
 /**
  * B-01: Aggregator 7→10 isolated reviews
  * Membaca _ompimpa/review/<story>-<reviewer>.json, handle missing reviewer (P1 High), dedup, scoring 100
@@ -145,11 +229,18 @@ export interface AggregateOptions {
   targetDir?: string;
   panelIds?: string[];
   timeoutMs?: number;
+  /**
+   * Marker sesi review. Array kosong [] HANYA dihitung bersih bila marker
+   * completed mencakup file reviewer tersebut; tanpa marker, [] = tanpa bukti.
+   */
+  sessionMarker?: HarnessResultMarker;
 }
 
 export interface AggregateResult {
   findings: TriageFinding[];
   deduped: TriageFinding[];
+  /** Temuan bervonis false (terbukti bukan defect) — tidak ikut skor. */
+  rejected: TriageFinding[];
   score: ScoreResult;
   missing: string[];
   remediation: TriageFinding[];
@@ -194,26 +285,36 @@ export async function aggregateReviews(
     const filePath = path.join(reviewDir, `${storyId}-${reviewerId}.json`);
     try {
       const content = await fs.readFile(filePath, "utf-8");
-      const parsed = JSON.parse(content);
-      if (Array.isArray(parsed)) {
-        for (const entry of parsed) {
-          // Validate required fields: severity, file, line, rule_violation/recommendation or ruleId
-          const sev = entry.severity || entry.default_severity || "Low";
-          const ruleId = entry.ruleId || entry.rule_violation || entry.rule_violation || "unknown";
-          findings.push({
-            file: entry.file,
-            line: entry.line ?? null,
-            column: entry.column ?? null,
-            ruleId: String(ruleId),
-            rule_violation: entry.rule_violation || entry.ruleId,
-            category: entry.category,
-            severity: String(sev),
-            message: entry.message || entry.recommendation || entry.rule_violation,
-            recommendation: entry.recommendation || entry.remediation,
-            remediation: entry.remediation || entry.recommendation,
-            sources: [reviewerId],
-          });
-        }
+      const parsed: unknown = JSON.parse(content);
+      const entries: unknown[] | null = Array.isArray(parsed)
+        ? parsed
+        : isFindingsEnvelope(parsed)
+          ? parsed.findings
+          : null;
+      if (entries === null) {
+        // Berkas ada tapi bukan array temuan maupun envelope valid → tanpa bukti.
+        missing.push(reviewerId);
+        findings.push(noEvidenceFinding(storyId, reviewerId, "malformed report (expected findings array or envelope)"));
+        continue;
+      }
+      if (entries.length === 0) {
+        const envelopeClean = isEnvelopeCleanReport(parsed, storyId, reviewerId);
+        const markerClean = isVerifiedClean(opts.sessionMarker, storyId, reviewerId);
+        if (envelopeClean && markerClean) continue; // bersih terverifikasi dua lapis
+        // Slot reservasi [] atau envelope tanpa marker: panel tanpa bukti.
+        missing.push(reviewerId);
+        findings.push(noEvidenceFinding(
+          storyId,
+          reviewerId,
+          Array.isArray(parsed)
+            ? "empty report, no completed review session marker"
+            : "empty envelope without completed review session marker"
+        ));
+        continue;
+      }
+      for (const entry of entries) {
+        const mapped = mapReviewEntry(entry, reviewerId);
+        if (mapped) findings.push(mapped);
       }
     } catch (err) {
       // Missing or crash — treat as P1 High reviewer missing (AC-B01-2)
@@ -250,12 +351,72 @@ export async function aggregateReviews(
     // Non-fatal if error during scan
   }
 
+  // Residual flunk guard: flunk() sah di gate ATDD-red, tidak sah di gate final.
+  try {
+    const residual = await auditResidualFlunk(storyId, { repoRoot: targetDir });
+    if (residual && residual.length > 0) {
+      findings.push(...residual);
+    }
+  } catch {
+    // Non-fatal
+  }
 
-  const deduped = deduplicateFindings(findings);
+  const dedupedAll = deduplicateFindings(findings);
+  const rejected = dedupedAll.filter((f) => (f.verdict || "").toLowerCase() === "false");
+  const deduped = dedupedAll.filter((f) => (f.verdict || "").toLowerCase() !== "false");
   const score = calculateScore(deduped);
   const remediation = remediationPlan(deduped);
 
-  return { findings, deduped, score, missing, remediation };
+  return { findings, deduped, rejected, score, missing, remediation };
+}
+
+/**
+ * Final-gate guard: sisa flunk() di test milik story = AC belum diimplementasikan (P1).
+ * Ter-scope ke test files story (bukan seluruh repo).
+ */
+export async function auditResidualFlunk(
+  storyId: string,
+  opts: { repoRoot?: string; testFiles?: string[] } = {}
+): Promise<TriageFinding[]> {
+  const repoRoot = opts.repoRoot || REPO_ROOT;
+  const targetStory = storyId.toUpperCase().replace(/^STORY-/, "");
+  let files = opts.testFiles || [];
+  if (files.length === 0) {
+    try {
+      const storiesYamlPath = path.join(repoRoot, "_ompimpa", "stories.yaml");
+      const yamlContent = await fs.readFile(storiesYamlPath, "utf-8");
+      const parsedData = yaml.parse(yamlContent);
+      const storyEntry = parsedData?.stories?.find((s: { id: string }) => s.id === storyId || s.id === targetStory);
+      if (storyEntry) {
+        files = partitionTargetFiles(storyEntry, repoRoot).testFiles;
+      }
+    } catch {}
+  }
+  const out: TriageFinding[] = [];
+  for (const f of files) {
+    try {
+      const full = path.isAbsolute(f) ? f : path.join(repoRoot, f);
+      const content = await fs.readFile(full, "utf-8");
+      const lines = content.split(/\r?\n/);
+      const hitIdx = lines.findIndex(
+        (l) => /\bflunk\s*\(/.test(l) && !l.trim().startsWith("#") && !l.trim().startsWith("//")
+      );
+      if (hitIdx >= 0) {
+        out.push({
+          file: f,
+          line: hitIdx + 1,
+          ruleId: "TEA-01",
+          rule_violation: "Residual Red-Phase flunk() at final gate",
+          category: "Functional & Correctness",
+          severity: "High",
+          message: `Residual flunk() in ${f}: acceptance criterion not implemented (TEA-01 final gate)`,
+          recommendation: "Replace the flunk stub with substantive assertions and green implementation, or remove the test.",
+          sources: ["bmad_gap_verifier"],
+        });
+      }
+    } catch {}
+  }
+  return out;
 }
 
 export async function appendPitfall(entry: string, pitfallsPath?: string): Promise<void> {
@@ -356,6 +517,29 @@ export function extractStoryACs(specContent: string): string[] {
   return Array.from(acMap.values());
 }
 
+export function extractElixirTestBody(
+  content: string,
+  doIndex: number
+): { body: string; endIndex: number } | null {
+  let depth = 1;
+  const tokenRegex = /(?:#[^\n]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\b(do|fn)\b|\b(end)\b)/gm;
+  tokenRegex.lastIndex = doIndex;
+  let match;
+  while ((match = tokenRegex.exec(content)) !== null) {
+    if (match[1]) {
+      depth++;
+    } else if (match[2]) {
+      depth--;
+      if (depth === 0) {
+        return {
+          body: content.slice(doIndex, match.index),
+          endIndex: match.index + match[0].length,
+        };
+      }
+    }
+  }
+  return null;
+}
 export function detectFalseGreens(content: string, filePath?: string): TriageFinding[] {
   const findings: TriageFinding[] = [];
   const lines = content.split(/\r?\n/);
@@ -453,12 +637,13 @@ export function detectFalseGreens(content: string, filePath?: string): TriageFin
   }
 
   // Elixir: test "..." do ... end
-  const elixirTestRegex = /test\s+["']([^"']+)["']\s*(?:,\s*[\s\S]*?)?\s*\bdo\b([\s\S]*?)\bend\b/g;
+  const elixirTestRegex = /test\s+(?:"([^"]+)"|'([^']+)')\s*(?:,\s*[\s\S]*?)?\s*\bdo\b/g;
   while ((testMatch = elixirTestRegex.exec(content)) !== null) {
-    const testTitle = testMatch[1];
-    const testBody = testMatch[2];
+    const testTitle = testMatch[1] || testMatch[2];
+    const res = extractElixirTestBody(content, elixirTestRegex.lastIndex);
+    const testBody = res ? res.body : "";
     const stripped = testBody.replace(/#[^\n]*/g, "").trim();
-    const hasAssertion = /\b(?:assert|refute)(?:_[a-zA-Z0-9_]+)?\b/.test(stripped);
+    const hasAssertion = /\b(?:assert|refute|flunk)(?:_[a-zA-Z0-9_]+)?\b/.test(stripped);
     if (!hasAssertion) {
       const prefix = content.slice(0, testMatch.index);
       const testLine = prefix.split(/\r?\n/).length;
@@ -474,8 +659,10 @@ export function detectFalseGreens(content: string, filePath?: string): TriageFin
         sources: ["bmad_gap_verifier", "ompimpa-test"],
       });
     }
+    if (res) {
+      elixirTestRegex.lastIndex = res.endIndex;
+    }
   }
-
   return findings;
 }
 
@@ -666,12 +853,25 @@ export async function auditFlakyAndSlowTests(
       const parsedData = yaml.parse(yamlContent);
       const targetStory = storyId.toUpperCase().replace(/^STORY-/, "");
       const storyEntry = parsedData?.stories?.find((s: any) => s.id === storyId || s.id === targetStory);
-      if (storyEntry && Array.isArray(storyEntry.target_files)) {
-        targetFiles = storyEntry.target_files
-          .map((f: string) => f.split("#")[0].trim())
-          .filter((f: string) => f.endsWith(".test.ts") || f.endsWith(".test.js") || f.endsWith("_test.exs") || f.endsWith(".spec.ts"));
+      if (storyEntry) {
+        const { testFiles: partitioned } = partitionTargetFiles(storyEntry as any, repoRoot);
+        targetFiles = partitioned;
       }
     } catch {}
+
+    if (targetFiles.length === 0) {
+      const specPath = path.join(repoRoot, "_ompimpa", "specs", `SPEC-${storyId}.md`);
+      try {
+        const specContent = await fs.readFile(specPath, "utf-8");
+        const atddSection = specContent.match(/### Berkas Uji ATDD[\s\S]*?(?=\n##|$)/);
+        if (atddSection) {
+          const matches = atddSection[0].match(/-\s*`?([a-zA-Z0-9_/.-]+(?:_test\.exs|\.test\.ts|\.test\.js|\.spec\.ts))`?/g);
+          if (matches) {
+            targetFiles = matches.map((m) => m.replace(/^-\s*`?/, "").replace(/`?$/, "").trim());
+          }
+        }
+      } catch {}
+    }
 
     if (targetFiles.length > 0) {
       for (const f of targetFiles) {
@@ -800,24 +1000,28 @@ export function checkACTraceability(
       const startLine = prefix.split(/\r?\n/).length;
       const endLine = startLine;
       const hasFG = falseGreens.some((fg) => fg.file === tf.file && fg.line === startLine);
-      const hasAssertion = /expect\s*\(|assert\s*\(/.test(body);
+      const hasAssertion = /expect\s*\(|assert\s*\(|expect\.unreachable\s*\(/.test(body);
       const hasSubstantive = hasAssertion && !hasFG;
       parsedTests.push({ title, file: tf.file, startLine, endLine, hasAssertion, hasSubstantive, hasFalseGreen: hasFG });
     }
 
     // Elixir: test "..." do ... end
-    const elixirRegex = /test\s+["']([^"']+)["']\s*(?:,\s*[\s\S]*?)?\s*\bdo\b([\s\S]*?)\bend\b/g;
+    const elixirRegex = /test\s+(?:"([^"]+)"|'([^']+)')\s*(?:,\s*[\s\S]*?)?\s*\bdo\b/g;
     while ((m = elixirRegex.exec(content)) !== null) {
-      const title = m[1];
-      const body = m[2];
+      const title = m[1] || m[2];
+      const res = extractElixirTestBody(content, elixirRegex.lastIndex);
+      const body = res ? res.body : "";
       const prefix = content.slice(0, m.index);
       const startLine = prefix.split(/\r?\n/).length;
-      const endLine = startLine + m[0].split(/\r?\n/).length - 1;
+      const endLine = res ? content.slice(0, res.endIndex).split(/\r?\n/).length : startLine;
       const hasFG = falseGreens.some((fg) => fg.file === tf.file && fg.line != null && fg.line >= startLine && fg.line <= endLine);
       const stripped = body.replace(/#[^\n]*/g, "").trim();
-      const hasAssertion = /\b(?:assert|refute)(?:_[a-zA-Z0-9_]+)?\b/.test(stripped);
+      const hasAssertion = /\b(?:assert|refute|flunk)(?:_[a-zA-Z0-9_]+)?\b/.test(stripped);
       const hasSubstantive = hasAssertion && !hasFG;
       parsedTests.push({ title, file: tf.file, startLine, endLine, hasAssertion, hasSubstantive, hasFalseGreen: hasFG });
+      if (res) {
+        elixirRegex.lastIndex = res.endIndex;
+      }
     }
   }
 
@@ -918,12 +1122,21 @@ export async function auditTeaTraceability(
     const yamlContent = await fs.readFile(storiesYamlPath, "utf-8");
     const parsedData = yaml.parse(yamlContent);
     const storyEntry = parsedData?.stories?.find((s: any) => s.id === storyId || s.id === targetStory);
-    if (storyEntry && Array.isArray(storyEntry.target_files)) {
-      storyTestFiles = storyEntry.target_files
-        .map((f: string) => f.split("#")[0].trim())
-        .filter((f: string) => f.endsWith(".test.ts") || f.endsWith(".test.js") || f.endsWith("_test.exs") || f.endsWith(".spec.ts"));
+    if (storyEntry) {
+      const { testFiles: partitioned } = partitionTargetFiles(storyEntry as any, repoRoot);
+      storyTestFiles = partitioned;
     }
   } catch {}
+
+  if (storyTestFiles.length === 0 && specContent) {
+    const atddSection = specContent.match(/### Berkas Uji ATDD[\s\S]*?(?=\n##|$)/);
+    if (atddSection) {
+      const matches = atddSection[0].match(/-\s*`?([a-zA-Z0-9_/.-]+(?:_test\.exs|\.test\.ts|\.test\.js|\.spec\.ts))`?/g);
+      if (matches) {
+        storyTestFiles = matches.map((m) => m.replace(/^-\s*`?/, "").replace(/`?$/, "").trim());
+      }
+    }
+  }
 
   if (opts.testFiles && opts.testFiles.length > 0) {
     for (const f of opts.testFiles) {

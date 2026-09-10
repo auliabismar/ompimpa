@@ -35,3 +35,14 @@ date: YYYY-MM-DD
 
 ## Alur Pencarian Otomatis
 Sebelum memulai investigasi bug baru, subagent `ompimpa-debug` memindai `_ompimpa/solutions/` untuk menemukan pola yang cocok dengan gejala saat ini.
+
+## C-03 Pitfalls Auto-Append (Port pitfalls_manager.py 18KB)
+
+Setiap `REMEDIATE` sukses (P0/P1) → auto-append ke `rules/pitfalls.md` + indeks `_ompimpa/solutions/SOL-*.md` via `src/triage.ts:appendPitfall()`.
+
+- **Trigger:** `triage dedup → calculateScore REMEDIATE → commit sukses → appendPitfall(entry)` (hook di `reviewer.ts` post-commit).
+- **Format pitfalls entry:** `### [YYYY-MM-DD] <ruleId> <short title> (P0/P1 REMEDIATE — <story>)` + Gejala/Akar/Solusi/File/Invariant/SOL link.
+- **SOL naming:** `SOL-<timestamp>-<slug>.md` dengan frontmatter `id, topic, tags, date`.
+- **Inject ke prompt:** `compound-solutions` skill di-load otomatis oleh `ompimpa-debug` dan `ompimpa-ironlaw` sebelum audit, agar pola teruji tidak diulang.
+- **Contoh:** `IL-01 float→decimal` — `field :balance, :float` → `field :balance, :decimal`, remediation `gunakan :decimal atau integer cents` di line tepat, dedup 3→1 (-30).
+- **Rotasi:** Jika `pitfalls.md >500 baris` → arsip ke `_ompimpa/solutions/archive/`.

@@ -1,9 +1,9 @@
-import * as fs from "node:fs/promises";
 import * as fsSync from "node:fs";
+import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { loadOmpimpaConfig, type OmpimpaConfig } from "../hooks/ompimpa-guard";
 import { runPrewalkScan, type PrewalkFinding } from "./prewalk";
-
+import type { HarnessResultMarker } from "./harness/omp_adapter";
 export interface ReviewPanelMember {
   id: string;
   name: string;
@@ -150,6 +150,8 @@ export interface DispatchOptions {
 export interface DispatchResult {
   dispatched: number;
   files: string[];
+  /** Panel tanpa file (slot pun tidak ter-reservasi). */
+  missing: string[];
   panel: ReviewPanelMember[];
   reviewDir: string;
 }
@@ -165,21 +167,34 @@ export async function dispatchIsolatedReview(
   await fs.mkdir(reviewDir, { recursive: true });
 
   const files: string[] = [];
+  const missing: string[] = [];
   const writes = panel.map(async (member) => {
     const filePath = path.join(reviewDir, `${storyId}-${member.id}.json`);
     try {
-      // Anti-Mocking (D-03): Jika berkas JSON sudah ditulis oleh subagent, validasi strukturnya tanpa menimpa
+      // Anti-Mocking (D-03): Jika berkas JSON sudah ditulis oleh subagent/sesi reviewer,
+      // validasi strukturnya tanpa menimpa. Format canonical: envelope
+      // {reviewer, story, completedAt, findings}; bare array = legacy (temuan tetap
+      // dinilai, [] = RESERVASI SLOT, bukan bukti review).
       const existing = await fs.readFile(filePath, "utf-8");
-      const parsed = JSON.parse(existing);
-      if (!Array.isArray(parsed)) {
-        throw new Error(`Review file ${filePath} must contain a JSON array`);
+      const parsed: unknown = JSON.parse(existing);
+      const valid =
+        Array.isArray(parsed) ||
+        (parsed !== null &&
+          typeof parsed === "object" &&
+          "findings" in parsed &&
+          Array.isArray(parsed.findings));
+      if (!valid) {
+        throw new Error(`Review file ${filePath} must contain a findings array or envelope`);
       }
-    } catch (err: any) {
-      if (err.code === "ENOENT") {
-        // Berkas belum ada di disk; inisialisasi berkas review bersih []
+    } catch (err: unknown) {
+      const isEnoent =
+        err instanceof Error && "code" in err && typeof err.code === "string" && err.code === "ENOENT";
+      if (isEnoent) {
+        // Berkas belum ada di disk; reservasi slot bersih []
         await fs.writeFile(filePath, "[]\n", "utf-8");
       } else {
-        throw err;
+        missing.push(member.id);
+        return;
       }
     }
     files.push(filePath);
@@ -187,7 +202,7 @@ export async function dispatchIsolatedReview(
 
   await Promise.all(writes);
 
-  return { dispatched: panel.length, files, panel, reviewDir };
+  return { dispatched: panel.length, files, missing, panel, reviewDir };
 }
 
 /**
@@ -252,6 +267,34 @@ export function calculateScorecard(
  * B-01: Mendukung isolated path via dispatchIsolatedReview + aggregateReviews
  * Jika options.storyId diberikan dan tidak ada review file, produce P0 INV-01
  */
+/**
+ * Memuat marker sesi review bila ada. Marker membuktikan [] adalah verdict
+ * bersih terverifikasi, bukan slot reservasi. Tanpa marker valid => undefined.
+ */
+export async function loadReviewSessionMarker(
+  reviewDir: string,
+  storyId: string
+): Promise<HarnessResultMarker | undefined> {
+  try {
+    const raw = await fs.readFile(path.join(reviewDir, `${storyId}.review.result.json`), "utf-8");
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed === null || typeof parsed !== "object") return undefined;
+    if (!("completed" in parsed) || !("role" in parsed) || !("story" in parsed)) return undefined;
+    const completed: unknown = parsed.completed;
+    const role: unknown = parsed.role;
+    const story: unknown = parsed.story;
+    if (completed !== true || role !== "review" || story !== storyId) return undefined;
+    const marker: HarnessResultMarker = { role: "review", story: storyId, completed: true };
+    if ("files" in parsed && Array.isArray(parsed.files)) {
+      const files: unknown[] = parsed.files;
+      marker.files = files.filter((f): f is string => typeof f === "string");
+    }
+    return marker;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function runReview(
   targetDir: string = process.cwd(),
   options: {
@@ -288,12 +331,23 @@ export async function runReview(
             message: "Review must be isolated via task — dispatchIsolatedReview not called for story " + options.storyId,
             remediation: "Use dispatchIsolatedReview(storyId) via task isolated:true before runReview",
           });
+          // Fail-closed: tanpa berkas isolated, vonis langsung BLOCKED.
+          // Dilarang mengencerkan P0 dengan fallback scan inline di thread utama.
+          const scorecard = calculateScorecard(findings, scoreFloor);
+          return {
+            verdict: "BLOCKED",
+            scorecard,
+            activeReviewers: panel,
+            findings,
+            summary: `🚫 Review BLOCKED (Skor: ${scorecard.overallScore}/100, Floor: ${scoreFloor}). Ditemukan 1 Blocker (P0): review inline tanpa dispatch terisolasi.`,
+          };
         }
       }
       if (findings.length === 0) {
         try {
           const { aggregateReviews } = await import("./triage.js");
-          const agg = await aggregateReviews(options.storyId, { targetDir, reviewDir });
+          const sessionMarker = await loadReviewSessionMarker(reviewDir, options.storyId);
+          const agg = await aggregateReviews(options.storyId, { targetDir, reviewDir, sessionMarker });
           for (const f of agg.deduped) {
             const sevMap: Record<string, ReviewFinding["severity"]> = {
               Critical: "P0",

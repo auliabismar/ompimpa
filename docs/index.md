@@ -33,15 +33,17 @@ Dokumentasi ini disusun menggunakan **Standar 4 Kuadran Diátaxis** untuk memisa
 * **[How-To: Deliberasi Sidang Balairung](how-to/deliberate-in-balairung.md)** — Cara membuka sidang musyawarah multi-persona 3-ronde untuk keputusan arsitektur strategis.
 * **[How-To: Ideasi Musyawarah & Master PRD](how-to/ideate-and-draft-prd.md)** — Cara menjalankan musyawarah ideasi SCAMPER/TRIZ dan menyusun PRD.
 * **[How-To: Scaffolding Tes Merah (ATDD)](how-to/scaffold-atdd-tests.md)** — Cara merancang matriks risiko P1-P4 dan membuat tes penerimaan merah.
-* **[How-To: Loop Koding Otonom & Circuit Breaker](how-to/run-autonomous-dev-loop.md)** — Cara menjalankan `/ompimpa:dev` berbasis disk state.
-* **[How-To: Review Paralel & Verifikasi Mutu](how-to/review-and-verify-code.md)** — Cara mengeksekusi panel review 4-jalur dan compiler gate.
+* **[How-To: Loop Koding Otonom & Outer CLI Driver](how-to/run-autonomous-dev-loop.md)** — Cara menjalankan `/ompimpa:dev` berbasis disk DAG state dan `bin/ompimpa dev --epic` di shell OS.
+* **[How-To: Review Terisolasi 10-Subagent & Verifikasi Mutu](how-to/review-and-verify-code.md)** — Cara mengeksekusi panel review 10 subagent (4 BMAD + 6 Tech), scoring 100/100, dan tiered verify.
+* **[How-To: Master Diagnostik 4-Pilar Proyek](how-to/inspect-project-health.md)** — Cara menjalankan `/ompimpa:inspect` out-of-band dan auto-triage hutang teknis ke `EPIC-DEBT`.
+* **[How-To: Analisis Blast-Radius & Graphify](how-to/analyze-blast-radius-graphify.md)** — Cara memetakan graf dependensi modul via `mix xref` + LSP dan menghitung blast-radius refactoring.
 * **[How-To: Menyusun Panduan Diátaxis](how-to/generate-diataxis-docs.md)** — Cara menghasilkan User, Admin, dan Dev Guides dengan subagent Mohammad Yamin.
 
 ---
 
 ## 📖 3. Reference (Informasi & Spesifikasi Teknis)
 *Berorientasi pada informasi teknis murni, parameter, dan daftar referensi:*
-* **[Referensi: Daftar Perintah Cepat (*Slash Commands*)](reference/slash-commands.md)** — Spesifikasi 13 slash commands, flag, dan subagent terkait.
+* **[Referensi: Daftar Perintah Cepat (*Slash Commands*) & CLI](reference/slash-commands.md)** — Spesifikasi 21 slash commands (`commands/*.md`) + 17 perintah CLI `bin/ompimpa` (`src/cli.ts`), flag, dan subagent terkait.
 * **[Referensi: Roster 14 Subagent Nusantara](reference/subagents-roster.md)** — Daftar 14 agen spesialis dan inspirasi tokoh Minangkabau.
 * **[Referensi: Spesifikasi Konfigurasi `ompimpa.toml`](reference/configuration-toml.md)** — Kamus lengkap seluruh opsi konfigurasi proyek.
 * **[Referensi: 26 Hukum Besi Elixir & Phoenix](reference/26-iron-laws.md)** — Daftar lengkap 26 invariant non-negotiable BEAM.
@@ -52,5 +54,5 @@ Dokumentasi ini disusun menggunakan **Standar 4 Kuadran Diátaxis** untuk memisa
 *Berorientasi pada pemahaman konsep, latar belakang, dan alasan desain:*
 * **[Penjelasan: Struktur Berkas, Penempatan Plugin, & Pelacakan Git](explanation/repository-structure-and-git-tracking.md)** — Penjelasan lokasi file plugin, penempatan artefak di proyek target, dan mengapa seluruh dokumen `docs/` wajib masuk Git.
 * **[Penjelasan: Arsitektur Tripartit OMP-IMPA](explanation/tripartite-architecture.md)** — Mengapa penggabungan BMAD + phxagents + OMP Engine sangat berdaya guna.
-* **[Penjelasan: Arsitektur Review Dua Tingkat (*Two-Tier Review*)](explanation/two-tier-quality-gates.md)** — Alasan pemisahan Micro-Review per-story dan Macro-Review per-fitur.
+* **[Penjelasan: Arsitektur Gerbang Mutu Bertingkat (*Multi-Tier Quality Gates*)](explanation/two-tier-quality-gates.md)** — Penjelasan perlindungan mutu 4 lapis (Tier 0 TTSR, Tier 1 Hook, Tier 2 Git Hook, Tier 3 10-Review & Tiered Verify).
 * **[Penjelasan: State Persisten di Disk & Circuit Breakers](explanation/state-persistence-and-circuit-breakers.md)** — Mengapa state dicatat di YAML disk dan bagaimana mencegah token loop.

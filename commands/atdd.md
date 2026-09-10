@@ -4,17 +4,17 @@ description: Merancang matriks risiko P1-P4 dan scaffolding tes merah Red-Phase 
 
 # Command: /atdd
 
-Jalankan subagent `ompimpa-test` (Tuanku Imam Bonjol) untuk menganalisis Kriteria Penerimaan dari PRD/Story dan menghasilkan berkas tes penerimaan ExUnit/LiveViewTest yang sengaja **MERAH (failing)** sebelum implementasi dimulai.
+Jalankan subagent `ompimpa-test` (Tuanku Imam Bonjol) untuk menganalisis Kriteria Penerimaan dari SPEC story dan menghasilkan berkas tes penerimaan ExUnit/LiveViewTest yang sengaja **MERAH (failing)** sebelum implementasi dimulai.
 
-> 💡 **Catatan**: Tahap ATDD ini sudah **terintegrasi otomatis** di dalam perintah `/ompimpa:dev`. Gunakan `/atdd` jika Anda ingin merancang, meninjau, atau melakukan scaffolding matriks risiko tes secara eksplisit sebelum masuk ke fase koding.
+> 🛡️ **Gerbang deterministik (`ompimpa atdd <ID>`):** INV-09 (SPEC wajib ada) + seluruh berkas tes target §6 SPEC wajib sudah di-scaffold. Lolos → status maju ke `ready-for-dev` (milestone atdd-red). Bukti MERAH (tes gagal by design) adalah tanggung jawab agen ATDD di sesi harness dan diverifikasi ulang oleh lensa gap_verifier/adversarial di `/review` — false green = REMEDIATE.
 
-## Penggunaan
-```bash
-/atdd [nomor Epic / Story / nama fitur]
-```
+---
 
-## Alur Kerja
-1. Membaca kriteria penerimaan dari PRD terkait.
-2. Memetakan skenario uji ke dalam matriks risiko P1–P4.
-3. Menulis scaffold tes merah di `test/my_app_web/live/` atau `test/my_app/`.
-4. Memastikan tes gagal secara tepat karena fitur belum diimplementasikan.
+## Pembagian Kerja (jujur)
+
+- **CLI (`ompimpa atdd [--auto]`)**: menjamin file test ada (scaffold stub
+  `flunk` per AC bila hilang) + memajukan status ke `ready-for-dev`. Stub
+  adalah rancangan merah, bukan bukti.
+- **Sesi DEV**: wajib mengganti stub menjadi asersi substantif dan membuktikan
+  merah via scoped test sebelum menulis kode. Sisa `flunk()` di gate final =
+  temuan P1 (`auditResidualFlunk`).

@@ -108,7 +108,7 @@ ironlaw = "smol"
 
         expect(modelMatch).not.toBeNull();
         const model = modelMatch![1];
-        expect(["slow", "plan", "design", "default", "smol"]).toContain(model);
+        expect(["slow", "plan", "vision", "default", "smol"]).toContain(model);
       }
     });
 
@@ -121,7 +121,7 @@ ironlaw = "smol"
       expect(resolveAgentModel("ompimpa-debug")).toBe("slow");
       expect(resolveAgentModel("ompimpa-prd")).toBe("plan");
       expect(resolveAgentModel("ompimpa-adr")).toBe("plan");
-      expect(resolveAgentModel("ompimpa-ui")).toBe("design");
+      expect(resolveAgentModel("ompimpa-ui")).toBe("vision");
       expect(resolveAgentModel("ompimpa-ash")).toBe("default");
       expect(resolveAgentModel("ompimpa-liveview")).toBe("default");
       expect(resolveAgentModel("ompimpa-ecto")).toBe("default");

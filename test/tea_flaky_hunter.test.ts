@@ -335,12 +335,23 @@ it("AC-E02-2: tes cepat deterministik", () => {
         stacks: { use_ash_framework: true, use_oban: true },
       });
       for (const p of panel) {
-        await fs.writeFile(path.join(reviewDir, `E-02-${p.id}.json`), "[]\n", "utf-8");
+        await fs.writeFile(
+          path.join(reviewDir, `E-02-${p.id}.json`),
+          JSON.stringify({ reviewer: p.id, story: "E-02", completedAt: "2026-09-08T00:00:00Z", findings: [] }),
+          "utf-8"
+        );
       }
+      // Kontrak jujur: [] dihitung bersih hanya dengan marker sesi review completed.
+      await fs.writeFile(
+        path.join(reviewDir, "E-02.review.result.json"),
+        JSON.stringify({ role: "review", story: "E-02", completed: true, files: panel.map((p) => `E-02-${p.id}.json`) }),
+        "utf-8"
+      );
 
       const agg = await aggregateReviews("E-02", {
         targetDir: tmpDir,
         reviewDir,
+        sessionMarker: { role: "review", story: "E-02", completed: true, files: panel.map((p) => `E-02-${p.id}.json`) },
       });
 
       expect(agg.score.score).toBe(100);

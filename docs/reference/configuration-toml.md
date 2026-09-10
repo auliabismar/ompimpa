@@ -42,9 +42,10 @@ auto_macro_review_in_dev = true# Jalankan review otomatis sebelum commit di akhi
 auto_triage_and_fix = true     # Triage otomatis temuan Blocker & Warning sebelum commit
 
 [quality.review]
-enable_spec_review = true        # Review Fungsional: Audit Source Code vs AC PRD (akan di-split 3/4 lens di B-03)
+enable_spec_review = true        # Review Fungsional: Audit Source Code vs AC PRD (4 lens BMAD saat bmad_lens_count=4)
 enable_tech_review = true        # Review Teknis: Audit Kepatuhan Teknis Elixir/Phoenix (Panel 6 Spesialis)
-parallel_reviewers = 6         # Panel 6 subagent paralel: IronLaw, Security, QA/Test, Compiler, Ecto/Ash, LiveView/Oban (total 7 dengan spec, 10 dengan BMAD 4 lens)
+bmad_lens_count = 4              # Total panel 10 (4 BMAD + 6 tech); 3 = tanpa completeness lens
+parallel_reviewers = 6         # Panel 6 subagent paralel: IronLaw, Security, QA/Test, Compiler, Ecto/Ash, LiveView/Oban (total 10 dengan 4 lens BMAD)
 max_triage_fix_cycles = 3      # [v2 ADR-001] Batas siklus perbaikan otomatis sebelum eskalasi (was 2, sinkron agyimpa 3)
 scoring_weights = { Critical = 30, High = 15, Medium = 5, Low = 2 } # [v2] port agyimpa criteria_registry_35.json
 allow_p2_nits = false          # [v2] P2 Low tetap BLOCK (was allow), sinkron agyimpa allow_p2_nits=false
@@ -62,15 +63,28 @@ steps = [
 [quality.verify.tier1] # Inner Loop <2s — blocking per story
 steps = ["compile --warnings-as-errors", "format --check-formatted"]
 [quality.verify.tier2] # Per-Story Gate <10s — blocking per story
-steps = ["test --stale"] # + 7 reviewers + triage 100/100 (B-01/B-02)
+steps = ["test --stale"] # + reviewers + triage 100/100 (B-01/B-02)
 [quality.verify.tier3] # Background Audit — non-blocking
 steps = ["test", "credo --strict", "sobelow --strict --format json"]
+
+# Kill criteria per story (A-02) — dirujuk dari _ompimpa/stories.yaml kill_criteria
+[stories]
+kill_criteria_cache = "_ompimpa/.cache/dag.json" # Jika DAG check >500ms di 100 story → cache
 
 # ==========================================
 # Manajemen Sumber Daya & Worktree
 # ==========================================
 [resources]
 use_git_worktrees = true       # Eksekusi task paralel di Git Worktree terisolasi (~/.omp/wt/)
+
+# ==========================================
+# Harness Headless (dipakai ompimpa dev --epic --auto)
+# ==========================================
+[harness]
+binary = "omp"                   # Biner harness yang di-spawn per fase code/review
+#model_dev = "default"           # Model sesi DEV (fuzzy match); kosong = default sesi
+#model_review = "default"        # Model sesi REVIEW; kosong = default sesi
+#session_timeout_ms = 600000    # Timeout per sesi harness
 # Pemetaan Model Subagent (Terkoneksi ke OMP Roles)
 # ==========================================
 [models]
@@ -78,7 +92,7 @@ balairung = "slow"              # Dewan Tokoh Balairung (3-Round Deliberation & 
 ideate = "slow"                # Rohana Kudus & Tan Malaka (Deep TRIZ & First Principles)
 prd = "plan"                   # H. Agus Salim (Master PRD & Architecture Planning)
 adr = "plan"                   # H. Agus Salim (Architecture Decision Records)
-ui = "design"                  # Marah Rusli (HEEx, Tailwind & Google Stitch Design)
+ui = "vision"                  # Marah Rusli (HEEx, Tailwind & Google Stitch Design)
 test = "default"               # Tuanku Imam Bonjol (Red-Phase ATDD Scaffolding)
 dev = "default"                # Backend Specialists (Ash, LiveView, Ecto, Oban, OTP)
 commit = "smol"               # Generator Semantic Commit Message (feat/fix/test/refactor)
@@ -91,9 +105,9 @@ doc = "default"                # Mohammad Yamin (Diátaxis User, Admin, Dev Guid
 # Pilihan Stack Modular
 # ==========================================
 [stacks]
-use_ash_framework = true       # Set false jika menggunakan Vanilla Phoenix + Ecto
-use_oban = true                # Set false jika tidak menggunakan background jobs Oban
-use_tailwind = true            # Set false jika tidak menggunakan Tailwind CSS
+use_ash_framework = false       # Auto-detect dari mix.exs (:ash); override CLI --ash/--no-ash (repo ini: false)
+use_oban = false                # Auto-detect dari mix.exs (:oban); override CLI --oban/--no-oban (repo ini: false)
+use_tailwind = true            # Auto-detect dari mix.exs (:tailwind)
 
 [stacks.liveview]
 stream_threshold_rows = 100    # Batas jumlah baris data sebelum wajib menggunakan LiveView Streams

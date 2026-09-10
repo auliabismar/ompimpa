@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>OMP-IMPA Graph — Blast Radius</title>
+<style>
+body{font-family:system-ui,sans-serif;padding:24px;max-width:960px;margin:auto}
+h1{font-size:20px}
+.node{fill:#2563eb;stroke:#1e3a8a}
+.edge{stroke:#94a3b8;stroke-width:1}
+#graph{border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin:16px 0}
+.stat{color:#475569;font-size:13px}
+.affected{color:#b91c1c}
+</style>
+</head>
+<body>
+<h1>Graphify Blast-Radius — ${data.nodes.length} nodes, ${data.edges.length} edges</h1>
+<p class="stat">Generated ${data.generated_at} via ${data.stats.method} in ${data.stats.elapsed_ms}ms — target ${data.target_dir}</p>
+<div id="graph">
+<p><strong>Nodes</strong> (${data.nodes.length}): ${data.nodes.slice(0,50).join(", ")}${data.nodes.length>50?" …":""}</p>
+<p><strong>Edges</strong> (${data.edges.length}):</p>
+<ul>${data.edges.slice(0,100).map(e=>`<li>${e.from} → ${e.to}</li>`).join("")}${data.edges.length>100?'<li>…</li>':''}</ul>
+${blastExample ? `<p><strong>Blast-radius example</strong> <code>lib/accounts.ex</code> → <span class="affected">${blastExample.affected.join(", ") || "(none)"}</span> (${blastExample.transitive_count} terdampak)</p>` : ""}
+</div>
+<p class="stat">Reviewer TEA-16 circular: ${jsonData.circular_check.hasCycle ? "CYCLE " + jsonData.circular_check.cycle.join(" → ") : "no cycle"}</p>
+</body>
+</html>

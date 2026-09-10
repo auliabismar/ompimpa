@@ -8,6 +8,17 @@ import {
   getBlockedStory,
   type Story,
 } from "./prewalk";
+import { canWriteStatus } from "./status";
+import { loadStoryDetail, partitionTargetFiles } from "./story_spec";
+import {
+  runHarnessSession,
+  type HarnessExecutor,
+  type HarnessSessionResult,
+} from "./harness/omp_adapter";
+import { buildDevPrompt, buildReviewPrompt } from "./harness/prompts";
+import { buildReviewPanel } from "./reviewer";
+import { loadOmpimpaConfig } from "../hooks/ompimpa-guard";
+import { aggregateReviews } from "./triage";
 
 const REPO_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const MAX_STREAM_BUFFER_BYTES = 10 * 1024 * 1024; // 10MB memory guard
@@ -70,6 +81,17 @@ export interface StoryPhaseResult {
   error?: string;
 }
 
+export interface HarnessPhaseConfig {
+  /** Harness aktif: fase code/review dijalankan sebagai sesi omp nyata. */
+  enabled: boolean;
+  runSession?: typeof runHarnessSession;
+  modelDev?: string;
+  modelReview?: string;
+  /** Timeout per sesi harness (default 600_000). */
+  sessionTimeoutMs?: number;
+  binary?: string;
+}
+
 export interface StoryRunnerOptions {
   repoRoot?: string;
   targetDir?: string;
@@ -78,6 +100,7 @@ export interface StoryRunnerOptions {
   executor?: SubprocessExecutor;
   env?: NodeJS.ProcessEnv;
   timeoutMs?: number;
+  harness?: HarnessPhaseConfig;
   onPhaseStart?: (phase: string, storyId: string) => void;
   onPhaseComplete?: (phase: string, storyId: string, exitCode: number) => void;
 }
@@ -91,6 +114,7 @@ export interface EpicLoopOptions {
   executor?: SubprocessExecutor;
   env?: NodeJS.ProcessEnv;
   timeoutMs?: number;
+  harness?: HarnessPhaseConfig;
   onStoryStart?: (storyId: string) => void;
   onStoryComplete?: (storyId: string, score: number) => void;
   onStoryFail?: (storyId: string, error: string) => void;
@@ -243,8 +267,10 @@ export async function updateFeatureStatus(
   targetDir: string,
   storyId: string,
   newStatus: string,
-  newRetries: number = 0
+  newRetries: number = 0,
+  force = false
 ): Promise<void> {
+  const canonicalStatus = newStatus.trim().toLowerCase().replace(/_/g, "-");
   const canonicalDir = path.resolve(targetDir);
   const statusPath = path.join(canonicalDir, "_ompimpa", "status", "feature-status.yaml");
   let content = "";
@@ -259,41 +285,58 @@ export async function updateFeatureStatus(
   if (!sanitizedId) {
     throw new Error(`Invalid story identifier: ${storyId}`);
   }
-
   const escapedId = escapeRegex(sanitizedId);
+  // Pencari blok berbasis pindaian baris (deterministik): blok story = dari
+  // baris "- id: <storyId>" hingga (eksklusif) baris "- id:" berikutnya,
+  // "# Kanban", atau EOF. (Regresi: lookahead `$` + flag `m` lama berhenti
+  // di akhir baris pertama sehingga baris status tak tercakup → duplikat.)
+  const lines = content.split("\n");
+  const idPattern = new RegExp(`^\\s*-\\s*id:\\s*["']?${escapedId}["']?\\s*$`);
+  const boundaryPattern = /^\s*-\s*id:\s*["']?[A-Za-z0-9_-]+["']?\s*$|^# Kanban/;
+  let blockStart = -1;
+  let blockEnd = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (idPattern.test(lines[i])) {
+      blockStart = i;
+      blockEnd = lines.length;
+      for (let j = i + 1; j < lines.length; j++) {
+        if (boundaryPattern.test(lines[j])) {
+          blockEnd = j;
+          break;
+        }
+      }
+      break;
+    }
+  }
 
-  // Scoped regex strictly bounded to single story record (DATA-INTEGRITY-01, ADV-RACE-REGEX-CORRUPTION)
-  // Matches from "  - id: <storyId>" until the next "  - id:" or EOF
-  const storyBlockRegex = new RegExp(
-    `(^\\s*-\\s*id:\\s*["']?${escapedId}["']?(?:\\s|$)[\\s\\S]*?)(?=\\n\\s*-\\s*id:|\\n# Kanban|$)`,
-    "m"
-  );
-
-  const blockMatch = content.match(storyBlockRegex);
-
-  if (blockMatch) {
-    let block = blockMatch[1];
-
-    // Update status within this block only
-    if (/status:\s*[a-zA-Z_-]+/.test(block)) {
-      block = block.replace(/status:\s*[a-zA-Z_-]+/, `status: ${newStatus}`);
+  if (blockStart !== -1) {
+    const blockLines = lines.slice(blockStart, blockEnd);
+    const statusIdx = blockLines.findIndex((l) => /status:\s*[a-zA-Z_-]+/.test(l));
+    if (statusIdx !== -1) {
+      const curMatch = blockLines[statusIdx].match(/status:\s*([a-zA-Z_-]+)/);
+      const cur = curMatch ? curMatch[1] : "";
+      if (!force && !canWriteStatus(cur, canonicalStatus)) return;
+      blockLines[statusIdx] = blockLines[statusIdx].replace(/status:\s*[a-zA-Z_-]+/, `status: ${canonicalStatus}`);
     } else {
-      block += `\n    status: ${newStatus}`;
+      blockLines.push(`    status: ${canonicalStatus}`);
     }
 
     // Update or insert retries within this block only
-    if (/retries:\s*\d+/.test(block)) {
-      block = block.replace(/retries:\s*\d+/, `retries: ${newRetries}`);
+    const retriesIdx = blockLines.findIndex((l) => /retries:\s*\d+/.test(l));
+    if (retriesIdx !== -1) {
+      blockLines[retriesIdx] = blockLines[retriesIdx].replace(/retries:\s*\d+/, `retries: ${newRetries}`);
     } else {
-      block = block.replace(/(status:\s*[a-zA-Z_-]+)/, `$1\n    retries: ${newRetries}`);
+      const anchorIdx = blockLines.findIndex((l) => /status:\s*[a-zA-Z_-]+/.test(l));
+      if (anchorIdx !== -1) blockLines.splice(anchorIdx + 1, 0, `    retries: ${newRetries}`);
+      else blockLines.push(`    retries: ${newRetries}`);
     }
 
-    content = content.replace(storyBlockRegex, block);
+    content = [...lines.slice(0, blockStart), ...blockLines, ...lines.slice(blockEnd)].join("\n");
   } else {
     // Append new entry cleanly before Kanban summary
     const entry = `  - id: ${sanitizedId}
     title: "${sanitizedId}"
-    status: ${newStatus}
+    status: ${canonicalStatus}
     retries: ${newRetries}
 `;
     const kanbanIdx = content.lastIndexOf("# Kanban");
@@ -310,8 +353,169 @@ export async function updateFeatureStatus(
   await fs.rename(tmpPath, statusPath);
 }
 
+function scopedTestCommand(testFile: string): string {
+  if (testFile.endsWith(".exs")) return `mix test ${testFile} --include atdd`;
+  if (testFile.endsWith(".test.ts") || testFile.endsWith(".test.js")) return `bun test ${testFile}`;
+  return `mix test ${testFile}`;
+}
+
+/**
+ * Fase code via sesi harness DEV nyata + verifikasi independen.
+ * Sesi menulis kode; adapter menjalankan ulang bukti uji dari marker.
+ */
+async function runDevHarnessPhase(
+  storyId: string,
+  targetDir: string,
+  executor: SubprocessExecutor,
+  env: NodeJS.ProcessEnv | undefined,
+  harness: HarnessPhaseConfig,
+  timeoutMs: number
+): Promise<{ code: number; stdout: string; stderr: string }> {
+  const fail = (stderr: string, stdout = "") => ({ code: 1, stdout, stderr });
+  let storyDetail;
+  try {
+    storyDetail = (await loadStoryDetail(storyId, targetDir)).story;
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return fail(`Cannot load story detail for ${storyId}: ${msg}`);
+  }
+  const { targetFiles, testFiles } = partitionTargetFiles(storyDetail, targetDir);
+  if (testFiles.length === 0) return fail(`No test files resolved for ${storyId}`);
+  const markerRel = `_ompimpa/runs/${storyId}-dev.result.json`;
+  let remediationFindings: string[] = [];
+  try {
+    const agg = await aggregateReviews(storyId, { targetDir });
+    if (agg.deduped.length > 0) {
+      remediationFindings = agg.deduped.map(
+        (f) => `[${f.severity}] ${f.ruleId} at ${f.file || "unknown"}:${f.line || 1}: ${f.message} -> Solusi: ${f.remediation || f.recommendation || ""}`
+      );
+    }
+  } catch {}
+  const prompt = buildDevPrompt({
+    story: storyDetail,
+    specRel: `_ompimpa/specs/SPEC-${storyId}.md`,
+    targetFiles,
+    testFiles,
+    scopedTest: scopedTestCommand(testFiles[0]),
+    markerRel,
+    remediationFindings,
+  });
+  const runSession = harness.runSession || runHarnessSession;
+  const sessionTimeout = harness.sessionTimeoutMs ?? 600_000;
+  let session: HarnessSessionResult;
+  try {
+    session = await runSession(
+      {
+        role: "dev",
+        storyId,
+        targetDir,
+        prompt,
+        model: harness.modelDev,
+        binary: harness.binary,
+        timeoutMs: sessionTimeout,
+        markerFile: markerRel,
+      },
+      executor
+    );
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return fail(`Harness dev session crashed: ${msg}`);
+  }
+  if (session.status !== "completed" || !session.marker) {
+    return fail(
+      `Harness dev session ${session.status} (exit ${session.exitCode}): ${session.stderrTail}`,
+      session.stdoutTail
+    );
+  }
+  // Verifikasi independen: jalankan ulang bukti uji dari marker.
+  const proof = session.marker.tests;
+  if (!proof || !Array.isArray(proof.argv) || proof.argv.length === 0) {
+    return fail(`Dev marker without test proof (tests.argv): ${markerRel}`, session.stdoutTail);
+  }
+  if (proof.exit !== 0) {
+    return fail(`Dev session reported failing tests (exit ${proof.exit})`, session.stdoutTail);
+  }
+  const verify = await executor(proof.argv[0], proof.argv.slice(1), targetDir, env, timeoutMs);
+  if (verify.code !== 0) {
+    return fail(
+      `Independent scoped-test re-run failed (exit ${verify.code}): ${verify.stderr || verify.stdout}`,
+      session.stdoutTail
+    );
+  }
+  return {
+    code: 0,
+    stdout: `Harness dev session completed for ${storyId}; scoped proof re-run green: ${proof.argv.join(" ")}`,
+    stderr: "",
+  };
+}
+
+/**
+ * Fase review via sesi harness REVIEW nyata + agregasi lokal tanpa stub.
+ * JSON ditulis sesi; CLI hanya mengagregasi (tanpa --auto agar tak ada stub).
+ */
+async function runReviewHarnessPhase(
+  storyId: string,
+  targetDir: string,
+  executor: SubprocessExecutor,
+  env: NodeJS.ProcessEnv | undefined,
+  harness: HarnessPhaseConfig,
+  cliPath: string,
+  timeoutMs: number
+): Promise<{ code: number; stdout: string; stderr: string }> {
+  const fail = (stderr: string, stdout = "") => ({ code: 1, stdout, stderr });
+  let storyDetail;
+  try {
+    storyDetail = (await loadStoryDetail(storyId, targetDir)).story;
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return fail(`Cannot load story detail for ${storyId}: ${msg}`);
+  }
+  const { targetFiles, testFiles } = partitionTargetFiles(storyDetail, targetDir);
+  const config = loadOmpimpaConfig(targetDir);
+  const panelIds = buildReviewPanel(config).map((m) => m.id);
+  const markerRel = `_ompimpa/review/${storyId}.review.result.json`;
+  const prompt = buildReviewPrompt({
+    story: storyDetail,
+    specRel: `_ompimpa/specs/SPEC-${storyId}.md`,
+    targetFiles,
+    testFiles,
+    reviewDirRel: "_ompimpa/review",
+    reviewerIds: panelIds,
+    markerRel,
+  });
+  const runSession = harness.runSession || runHarnessSession;
+  let session: HarnessSessionResult;
+  try {
+    session = await runSession(
+      {
+        role: "review",
+        storyId,
+        targetDir,
+        prompt,
+        model: harness.modelReview,
+        binary: harness.binary,
+        timeoutMs: harness.sessionTimeoutMs ?? 600_000,
+        markerFile: markerRel,
+      },
+      executor
+    );
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return fail(`Harness review session crashed: ${msg}`);
+  }
+  if (session.status !== "completed" || !session.marker) {
+    return fail(
+      `Harness review session ${session.status} (exit ${session.exitCode}): ${session.stderrTail}`,
+      session.stdoutTail
+    );
+  }
+  // Agregasi lokal deterministik TANPA --auto: tidak ada stub, file hilang = P1 genuine.
+  return executor("bun", ["run", cliPath, "review", "--story", storyId], targetDir, env, timeoutMs);
+}
+
 /**
  * Runs the 5 modular phases of a single story via fresh subprocess calls (anti-rot).
+ * Dengan harness aktif, fase code/review dijalankan sebagai sesi omp nyata.
  */
 export async function runStoryPhases(
   storyId: string,
@@ -322,14 +526,27 @@ export async function runStoryPhases(
   const cliPath = path.join(REPO_ROOT, "src", "cli.ts");
   const timeoutMs = options.timeoutMs ?? 60_000;
 
-  const phases = [
-    { name: "story", args: ["run", cliPath, "story", storyId] },
-    { name: "code", args: ["run", cliPath, "code", storyId] },
-    { name: "review", args: ["run", cliPath, "review", storyId] },
-    { name: "triage", args: ["run", cliPath, "triage", storyId, "--strict"] },
+  const harnessEnabled = options.harness?.enabled === true;
+  const phases: Array<{
+    name: string;
+    args: string[];
+    doneStatus: string;
+    harnessRole?: "dev" | "review";
+  }> = [
+    { name: "story", args: ["run", cliPath, "story", storyId], doneStatus: "ready-for-atdd" },
+    { name: "atdd", args: ["run", cliPath, "atdd", storyId, "--auto"], doneStatus: "ready-for-dev" },
+    { name: "code", args: ["run", cliPath, "code", storyId], doneStatus: "in-progress", harnessRole: "dev" },
+    { name: "review", args: ["run", cliPath, "review", "--story", storyId, "--auto"], doneStatus: "in-review", harnessRole: "review" },
+    { name: "triage", args: ["run", cliPath, "triage", storyId, "--strict"], doneStatus: "done" },
   ];
 
   const phaseRecords: StoryPhaseResult["phases"] = [];
+  const phaseEnv = {
+    ...process.env,
+    ...options.env,
+    OMPIMPA_HARNESS: "1",
+    OMPIMPA_STORY: storyId,
+  };
 
   for (const phase of phases) {
     options.onPhaseStart?.(phase.name, storyId);
@@ -349,13 +566,29 @@ export async function runStoryPhases(
       continue;
     }
 
-    const res = await executor("bun", phase.args, targetDir, options.env, timeoutMs);
+    let res: { code: number; stdout: string; stderr: string };
+    let cmd = "bun";
+    let args = phase.args;
+    if (harnessEnabled && phase.harnessRole && options.harness) {
+      cmd = "omp";
+      if (phase.harnessRole === "dev") {
+        const hr = await runDevHarnessPhase(storyId, targetDir, executor, phaseEnv, options.harness, timeoutMs);
+        res = hr;
+        args = ["-p", `dev session for ${storyId}`];
+      } else {
+        const hr = await runReviewHarnessPhase(storyId, targetDir, executor, phaseEnv, options.harness, cliPath, timeoutMs);
+        res = hr;
+        args = ["-p", `review session for ${storyId}`];
+      }
+    } else {
+      res = await executor("bun", phase.args, targetDir, phaseEnv, timeoutMs);
+    }
     const duration = Date.now() - start;
 
     phaseRecords.push({
       phase: phase.name,
-      cmd: "bun",
-      args: phase.args,
+      cmd,
+      args,
       exitCode: res.code,
       durationMs: duration,
       stdout: res.stdout,
@@ -363,6 +596,13 @@ export async function runStoryPhases(
     });
 
     options.onPhaseComplete?.(phase.name, storyId, res.code);
+    if (res.code === 0 && !options.dryRun && phase.doneStatus) {
+      try {
+        await updateFeatureStatus(targetDir, storyId, phase.doneStatus, 0);
+      } catch {
+        // Status advance best-effort: kegagalan tulis status tidak menggagalkan fase.
+      }
+    }
 
     if (res.code !== 0) {
       let score: number | undefined;
@@ -389,6 +629,127 @@ export async function runStoryPhases(
     retries: 0,
     phases: phaseRecords,
   };
+}
+/**
+ * Automatically creates a conventional semantic commit for a completed story
+ * upon 100/100 triage PASS.
+ */
+export async function commitStoryChanges(
+  targetDir: string,
+  storyId: string,
+  executor: SubprocessExecutor = defaultSubprocessExecutor
+): Promise<{ success: boolean; commitMessage?: string; error?: string }> {
+  // Check if .git directory exists
+  try {
+    const gitDir = path.join(targetDir, ".git");
+    const stat = await fs.stat(gitDir);
+    if (!stat.isDirectory()) return { success: true };
+  } catch {
+    return { success: true }; // Not a git repository
+  }
+  // 0. Format Elixir code before staging if mix.exs exists (pre-commit requirement)
+  try {
+    const mixPath = path.join(targetDir, "mix.exs");
+    const stat = await fs.stat(mixPath);
+    if (stat.isFile()) {
+      await executor("mix", ["format"], targetDir);
+    }
+  } catch {}
+
+  // 1. Stage all changes
+  const addRes = await executor("git", ["add", "-A"], targetDir);
+  if (addRes.code !== 0) {
+    return { success: false, error: `git add failed: ${addRes.stderr || addRes.stdout}` };
+  }
+
+  // 2. Check if there are any staged changes
+  const diffCheck = await executor("git", ["diff", "--cached", "--quiet"], targetDir);
+  if (diffCheck.code === 0) {
+    // No changes staged to commit
+    return { success: true };
+  }
+
+  // 3. Load story detail to construct Semantic Commit message
+  let type = "feat";
+  let scope = "app";
+  let title = storyId;
+  let epicId = "";
+
+  try {
+    const { story, epic } = await loadStoryDetail(storyId, targetDir);
+    title = story.title;
+    epicId = story.epic || (epic ? epic.id : "");
+
+    const titleLower = story.title.toLowerCase();
+    if (titleLower.includes("refactor") || titleLower.includes("penertiban") || titleLower.includes("migrasi")) {
+      type = "refactor";
+    } else if (titleLower.includes("fix") || titleLower.includes("perbaikan") || titleLower.includes("koreksi")) {
+      type = "fix";
+    } else if (titleLower.includes("test") || titleLower.includes("pengujian") || titleLower.includes("atdd")) {
+      type = "test";
+    } else if (titleLower.includes("doc") || titleLower.includes("panduan")) {
+      type = "docs";
+    }
+
+    // Determine scope
+    scope = (story.epic || "").toLowerCase().replace(/^epic-?/, "");
+    const primaryTarget = story.target_files[0] || "";
+    if (primaryTarget.includes("/sales/")) scope = "sales";
+    else if (primaryTarget.includes("/finance/")) scope = "finance";
+    else if (primaryTarget.includes("/procurement/")) scope = "procurement";
+    else if (primaryTarget.includes("/admin/")) scope = "admin";
+    else if (primaryTarget.includes("journal_entry") || primaryTarget.includes("accounting")) scope = "accounting";
+    else if (primaryTarget.includes("/components/")) scope = "ui";
+  } catch {
+    // Fallback if stories.yaml cannot be parsed
+  }
+
+  const commitHeader = `${type}(${scope || "app"}): ${title} (${storyId})`;
+  const commitBody = [
+    commitHeader,
+    "",
+    `- Story: ${storyId}`,
+    epicId ? `- Epic: ${epicId}` : null,
+    "- Quality: Triage 100/100 PASS (TEA Architecture)",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  // 4. Execute git commit
+  const commitRes = await executor("git", ["commit", "-m", commitBody], targetDir);
+  if (commitRes.code !== 0) {
+    return {
+      success: false,
+      error: `git commit failed (exit code ${commitRes.code}): ${commitRes.stderr || commitRes.stdout}`,
+    };
+  }
+
+  return { success: true, commitMessage: commitHeader };
+}
+
+/**
+ * Mencatat jejak run ke SPEC story (ledger append-only §12).
+ * SPEC adalah living record: intent beku tidak tersentuh, hasil run terakumulasi.
+ * Best-effort: SPEC hilang bukan kegagalan loop.
+ */
+export async function appendSpecLedger(
+  targetDir: string,
+  storyId: string,
+  lines: string[]
+): Promise<void> {
+  try {
+    const specPath = path.join(targetDir, "_ompimpa", "specs", `SPEC-${storyId}.md`);
+    const existing = await fs.readFile(specPath, "utf-8");
+    const stamp = new Date().toISOString();
+    const bullets = lines.map((l) => `- [${stamp}] ${l}`).join("\n");
+    const header = "## 12. Run Ledger (Append-Only Selama Loop)";
+    const next = existing.includes(header)
+      ? `${existing.trimEnd()}\n${bullets}\n`
+      : `${existing.trimEnd()}\n\n---\n\n${header}\n\n_Berisi jejak eksekusi loop per run; dilarang menghapus._\n\n${bullets}\n`;
+    await fs.writeFile(specPath, next, "utf-8");
+  } catch {
+    // SPEC belum ada (mis. fixture test) — ledger di-skip tanpa menggagalkan loop.
+  }
 }
 
 /**
@@ -473,7 +834,9 @@ export async function runEpicLoop(options: EpicLoopOptions): Promise<EpicLoopRes
     };
   }
 
-  const epicStories = stories.filter((s) => s.epic === options.epicId);
+  const epicStories = stories.filter(
+    (s) => s.epic === options.epicId || s.epic?.toLowerCase() === options.epicId?.toLowerCase()
+  );
   if (epicStories.length === 0) {
     return {
       epicId: options.epicId,
@@ -507,6 +870,17 @@ export async function runEpicLoop(options: EpicLoopOptions): Promise<EpicLoopRes
   const failedStories: string[] = [];
   const blockedStories: string[] = [];
   const history: EpicLoopHistoryItem[] = [];
+  const failEpic = (message: string): EpicLoopResult => ({
+    epicId: options.epicId,
+    totalStories: epicOrder.length,
+    executedStories,
+    completedStories,
+    failedStories,
+    blockedStories,
+    success: false,
+    message,
+    history,
+  });
 
   // 3. Sequential outer while-loop per story
   for (const storyId of epicOrder) {
@@ -557,7 +931,9 @@ export async function runEpicLoop(options: EpicLoopOptions): Promise<EpicLoopRes
     const storyPhaseSummaries: Array<{ phase: string; exitCode: number; durationMs: number }> = [];
 
     while (retries < maxRetries && !storyPassed) {
-      await updateFeatureStatus(targetDir, storyId, "in-progress", retries);
+      // Engine owns the board: paksa in-progress agar status jujur walau sesi
+      // yolo sempat mencoret feature-status.yaml di luar kontrak.
+      await updateFeatureStatus(targetDir, storyId, "in-progress", retries, true);
 
       const phaseResult = await runStoryPhases(storyId, {
         targetDir,
@@ -565,6 +941,7 @@ export async function runEpicLoop(options: EpicLoopOptions): Promise<EpicLoopRes
         executor,
         env: options.env,
         timeoutMs,
+        harness: options.harness,
       });
 
       for (const p of phaseResult.phases) {
@@ -580,6 +957,30 @@ export async function runEpicLoop(options: EpicLoopOptions): Promise<EpicLoopRes
         await updateFeatureStatus(targetDir, storyId, "done", retries);
         doneIds.add(storyId);
         completedStories.push(storyId);
+
+        // Auto-commit semantic changes — kegagalan commit bersifat eksplisit:
+        // loop berhenti agar user membereskan git state, bukan menumpuk diam-diam.
+        let commitMessage: string | undefined;
+        try {
+          const commitRes = await commitStoryChanges(targetDir, storyId, executor);
+          if (commitRes.commitMessage) {
+            commitMessage = commitRes.commitMessage;
+            console.log(`📦 [Auto-Commit] ${commitRes.commitMessage}`);
+          } else if (!commitRes.success && commitRes.error) {
+            return failEpic(
+              `Story ${storyId} done but commit failed: ${commitRes.error} — resolve git state, then re-run`
+            );
+          }
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          return failEpic(`Story ${storyId} done but commit crashed: ${msg} — resolve git state, then re-run`);
+        }
+
+        await appendSpecLedger(targetDir, storyId, [
+          `done (triage 100/100, retries ${retries})`,
+          ...(commitMessage ? [`commit: ${commitMessage}`] : [`commit: skipped (no changes)`]),
+        ]);
+
         options.onStoryComplete?.(storyId, 100);
 
         history.push({
@@ -606,7 +1007,9 @@ export async function runEpicLoop(options: EpicLoopOptions): Promise<EpicLoopRes
             retries,
             status: "failed",
           });
-
+          await appendSpecLedger(targetDir, storyId, [
+            `failed (circuit breaker, retries ${retries}): ${phaseResult.error || "max retries"}`,
+          ]);
           return {
             epicId: options.epicId,
             totalStories: epicOrder.length,

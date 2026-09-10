@@ -1,0 +1,48 @@
+{
+  "nodes": [
+    "_upstream/phxagents/plugins/elixir-phoenix/skills/deps-vet/priv/hex_vet_seed.exs",
+    "_upstream/phxagents/targets/amp/skills/phx-deps-vet/priv/hex_vet_seed.exs",
+    "_upstream/phxagents/targets/codex/skills/phx-deps-vet/priv/hex_vet_seed.exs",
+    "_upstream/phxagents/targets/dsh/skills/phx-deps-vet/priv/hex_vet_seed.exs",
+    "_upstream/phxagents/targets/opencode/skills/phx-deps-vet/priv/hex_vet_seed.exs",
+    "_upstream/phxagents/targets/pi/skills/phx-deps-vet/priv/hex_vet_seed.exs",
+    "lib/accounts.ex",
+    "lib/my_app_web/live/admin_live.ex",
+    "lib/my_app_web/live/user_live.ex",
+    "templates/mix_aliases.exs"
+  ],
+  "edges": [
+    {
+      "from": "lib/my_app_web/live/user_live.ex",
+      "to": "lib/accounts.ex"
+    },
+    {
+      "from": "lib/my_app_web/live/admin_live.ex",
+      "to": "lib/accounts.ex"
+    }
+  ],
+  "generated_at": "2026-09-10T09:39:55.401Z",
+  "target_dir": "/home/aulia/ompimpa",
+  "stats": {
+    "total_files": 10,
+    "elapsed_ms": 574,
+    "method": "regex_scan"
+  },
+  "blast_radius_example": {
+    "source": "lib/accounts.ex",
+    "affected": [
+      "lib/my_app_web/live/admin_live.ex",
+      "lib/my_app_web/live/user_live.ex"
+    ],
+    "direct_dependents": [
+      "lib/my_app_web/live/admin_live.ex",
+      "lib/my_app_web/live/user_live.ex"
+    ],
+    "transitive_count": 2
+  },
+  "circular_check": {
+    "hasCycle": false,
+    "cycle": null
+  },
+  "boundary_violations": []
+}

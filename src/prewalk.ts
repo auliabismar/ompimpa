@@ -1,5 +1,6 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+// C-01: lazy import graphify to avoid circular deps — dynamic import used in functions
 
 export interface PrewalkRule {
   id: string;
@@ -497,16 +498,20 @@ export function parseFeatureStatusYaml(content: string): {
   let curId: string | null = null;
   let curStatus: string | null = null;
   let curRetries = 0;
+  const push = () => {
+    if (curId && curStatus) {
+      const canonical = curStatus.trim().toLowerCase().replace(/_/g, "-");
+      statusMap.set(curId, canonical);
+      if (canonical === "done") doneIds.add(curId);
+      stories.push({ id: curId, status: canonical, retries: curRetries });
+    }
+  };
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
     const idMatch = line.match(/^\s*-\s*id:\s*["']?([A-Za-z0-9_-]+)["']?/);
     if (idMatch) {
-      if (curId && curStatus) {
-        statusMap.set(curId, curStatus);
-        if (curStatus === "done") doneIds.add(curId);
-        stories.push({ id: curId, status: curStatus, retries: curRetries });
-      }
+      push();
       curId = idMatch[1];
       curStatus = null;
       curRetries = 0;
@@ -517,10 +522,25 @@ export function parseFeatureStatusYaml(content: string): {
     const retriesMatch = line.match(/^\s*retries:\s*(\d+)/);
     if (retriesMatch && curId) curRetries = parseInt(retriesMatch[1], 10);
   }
-  if (curId && curStatus) {
-    statusMap.set(curId, curStatus);
-    if (curStatus === "done") doneIds.add(curId);
-    stories.push({ id: curId, status: curStatus, retries: curRetries });
-  }
+  push();
   return { doneIds, statusMap, stories };
+}
+// ===== C-01: Graphify Blast-Radius via mix xref + LSP =====
+export async function getGraphForReview(targetDir: string = process.cwd()): Promise<unknown | null> {
+  try {
+    const { enrichReviewWithGraph } = await import("./graphify");
+    return await enrichReviewWithGraph(targetDir);
+  } catch {
+    return null;
+  }
+}
+
+export async function ensureGraphFiles(targetDir: string = process.cwd()): Promise<{ jsonPath: string; htmlPath: string } | null> {
+  try {
+    const { generateGraphFiles } = await import("./graphify");
+    const res = await generateGraphFiles(targetDir);
+    return { jsonPath: res.jsonPath, htmlPath: res.htmlPath };
+  } catch {
+    return null;
+  }
 }

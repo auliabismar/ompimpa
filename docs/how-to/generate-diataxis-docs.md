@@ -10,11 +10,15 @@ Untuk membuat panduan alur kerja bagi pengguna akhir berdasarkan fitur di Epic a
 
 ```bash
 /ompimpa:doc user --epic 8
+# atau deterministik dari shell OS (tanpa argumen, output 4 kuadran):
+bin/ompimpa doc
 ```
 
-### Berkas yang Dihasilkan di `docs/user/`:
-- **`tutorials/`**: Panduan langkah demi langkah bagi pengguna yang baru pertama kali menggunakan fitur.
-- **`how-to/`**: Panduan cara menyelesaikan tugas tertentu (misal: *"Cara Mengaktifkan Autentikasi Biometrik"*).
+### Berkas yang Dihasilkan di `docs/` (`output_dir = "docs"`, `src/dokumentasi.ts:generateDocs`):
+- **`docs/tutorials/01-getting-started.md`**: Langkah instal → init Greenfield/Brownfield → epic loop C-01..C-06.
+- **`docs/how-to/how-to-use-liveview-streams.md`**: Contoh `stream/3` Hukum Besi #3 (>100 baris).
+- **`docs/reference/configuration-toml.md`**: Spesifikasi `ompimpa.toml` + scoring v2 100/100.
+- **`docs/explanation/tripartite-architecture.md`**: BMAD + phxagents + OMP Engine.
 
 ---
 
@@ -26,9 +30,9 @@ Untuk membuat dokumentasi operasional dan tata kelola sistem:
 /ompimpa:doc admin --story 1.2
 ```
 
-### Berkas yang Dihasilkan di `docs/admin/`:
-- **`how-to/`**: Prosedur konfigurasi hak akses, manajemen peran pengguna, dan audit trail.
-- **`reference/`**: Variabel environment, daftar role RBAC, dan jadwal antrean cron Oban.
+### Berkas yang Dihasilkan tetap di `docs/` 4 kuadran (bukan `docs/admin/`):
+- **`docs/how-to/`**: Prosedur tugas nyata hasil generate deterministik.
+- **`docs/reference/`**: Spesifikasi teknis (`configuration-toml.md`, `26-iron-laws.md`).
 
 ---
 
@@ -40,6 +44,6 @@ Untuk mendokumentasikan modul teknis, arsitektur, dan referensi API:
 /ompimpa:doc dev --module Accounts
 ```
 
-### Berkas yang Dihasilkan di `docs/dev/`:
-- **`reference/`**: Spesifikasi lengkap skema Ecto/Ash Resources, Actions, parameter event LiveView, dan endpoint API.
-- **`explanation/`**: Alasan arsitektur di balik perancangan modul, trade-off yang dipilih di ADR, dan 26 Hukum Besi yang relevan.
+### Berkas yang Dihasilkan tetap di `docs/` 4 kuadran (bukan `docs/dev/`):
+- **`docs/reference/`**: Spesifikasi skema Ecto/Ash Resources, Actions, parameter event LiveView.
+- **`docs/explanation/`**: Alasan arsitektur, trade-off ADR, dan 26 Hukum Besi yang relevan.

@@ -1,5 +1,5 @@
 # Feature Status — Panen agyimpa → ompimpa (14 stories)
-# Dev loop: PAUSED — backlog → ready-for-dev → in-progress → done (autonomous loop dinonaktifkan per instruksi user)
+# Dev loop: backlog → ready-for-atdd → ready-for-dev → in-progress → in-review → done (never-regress; terminal: failed/blocked)
 # Source: _ompimpa/stories.yaml (DAG), scoring v2 100/100, tiered T1/T2/T3
 # ADR: ADR-001, Balairung: BALAIRUNG-20260902-panen-agyimpa-review-sync.md
 
@@ -158,6 +158,39 @@ stories:
     epic: EPIC-E
     tea_tier: P2
     assignee: ompimpa-test
+  - id: F-01
+    title: "Stat-Gated State Reader & Active Session Tailer"
+    status: done
+    retries: 0
+    epic: EPIC-F
+    tea_tier: P0
+    assignee: ompimpa-dev
+  - id: F-02
+    title: "ANSI Terminal Box & Layout Engine"
+    status: done
+    retries: 0
+    epic: EPIC-F
+    tea_tier: P0
+    assignee: ompimpa-ui
+  - id: F-03
+    status: done
+    retries: 0
+    epic: EPIC-F
+    tea_tier: P0
+    assignee: ompimpa-ui
+  - id: F-04
+    status: done
+    retries: 0
+    epic: EPIC-F
+    tea_tier: P0
+    assignee: ompimpa-dev
+  - id: F-05
+    title: "CLI Subcommand Integration, Keyboard Navigation & Lifecycle Hygiene"
+    status: done
+    retries: 0
+    epic: EPIC-F
+    tea_tier: P1
+    assignee: ompimpa-dev
 # Kanban summary
-# backlog: 0 | ready-for-dev: 0 | in-progress: 0 | done: 22 (EPIC-A ✅ EPIC-B ✅ EPIC-C ✅ EPIC-D ✅ EPIC-E: E-01 ✅ E-02 ✅ E-03 ✅)
-# Status: Seluruh story di EPIC-A, EPIC-B, EPIC-C, EPIC-D, dan EPIC-E tuntas 100%!
+# backlog: 0 | ready-for-dev: 0 | in-progress: 0 | done: 27 (EPIC-A ✅ EPIC-B ✅ EPIC-C ✅ EPIC-D ✅ EPIC-E ✅ EPIC-F: F-01..F-05 ✅)
+# Status: Seluruh story di EPIC-A, EPIC-B, EPIC-C, EPIC-D, EPIC-E, dan EPIC-F tuntas 100%!

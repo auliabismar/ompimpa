@@ -12,7 +12,9 @@ Jalankan subagent `ompimpa-prd` (H. Agus Salim) untuk merumuskan dokumen Master 
 ```
 
 ## Alur Kerja
-1. Membaca output ideasi dari `_ompimpa/ideation/` atau prompt pengguna.
-2. Menyusun Functional Requirements (FR) dan Non-Functional Requirements (NFR).
+1. Membaca risalah Balairung — WAJIB ada Tabel Inventaris (INV-10); tolak sapu-jagat tanpa tabel.
+2. Menyusun Functional Requirements (FR) dan Non-Functional Requirements (NFR) dengan cakupan 1:1 terhadap tiap modul inventaris (INV-11 anti scope-truncation: modul hilang hanya via Scope Deferral Record di ADR).
 3. Menyusun Epics Spine dengan Acceptance Criteria siap uji ATDD.
-4. Menyimpan berkas di `_ompimpa/prd/PRD-[ID]-[nama].md`.
+4. Mendaftarkan skeleton tiap story ke `_ompimpa/status/feature-status.yaml` dengan `status: backlog` + tautan `prd:` (milestone prd-approved).
+5. Menyimpan berkas di `_ompimpa/prd/PRD-[ID]-[nama].md`.
+6. Validasi mekanis: `ompimpa inventory --balairung <risalah> --prd <prd> --stories _ompimpa/stories.yaml` (exit 0).

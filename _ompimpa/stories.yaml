@@ -21,6 +21,9 @@ epics:
   - id: EPIC-E
     title: "In-Band TEA & Master Diagnostic — Mutu Asersi & Unifikasi /inspect"
     description: "Traceability TEA-01, flaky/mutation guard, dan unifikasi audit ke /ompimpa:inspect."
+  - id: EPIC-F
+    title: "Native Terminal UI (TUI) Dashboard & Real-Time Observer"
+    description: "Antarmuka pemantau interaktif terminal berbasis Bun/TypeScript dengan zero-dependency ANSI renderer, stat-gated state reader, live tool stream, dan thinking toggle."
 
 stories:
   - id: A-01
@@ -653,3 +656,171 @@ stories:
     kill_criteria: []
     estimate: "M"
     scoring_impact: "TEA-15, TEA-24, TEA-35"
+
+  - id: F-01
+    epic: EPIC-F
+    title: "Stat-Gated State Reader & Active Session Tailer"
+    description: |
+      Membangun lapisan observasi sistem berkas read-only yang aman dan stat-gated untuk TUI di src/tui/data.ts.
+      Membaca _ompimpa/status/feature-status.yaml, stories.yaml, dan melakukan incremental tailing
+      pada sesi JSONL ~/.omp/agent/sessions/-<project>/*.jsonl dengan line-boundary guard.
+    tea_tier: "P0"
+    priority: "P0"
+    depends_on: []
+    target_files:
+      - "src/tui/data.ts"
+      - "test/tui_data.test.ts"
+    ac:
+      - id: AC-F01-1
+        given: "direktori target memuat _ompimpa/status/feature-status.yaml dan stories.yaml"
+        when: "loadState() dipanggil"
+        then: "mengembalikan struktur KanbanState lengkap berisi daftar story terurut dan metadata"
+      - id: AC-F01-2
+        given: "pemanggilan berulang tanpa perubahan berkas (mtime dan size sama)"
+        when: "loadState() dipanggil kedua kali"
+        then: "mengembalikan cache snapshot memori tanpa melakukan I/O pembacaan disk baru"
+      - id: AC-F01-3
+        given: "berkas sesi JSONL memiliki baris terakhir yang belum selesai ditulis (tanpa karakter newline)"
+        when: "tailSession() membaca pertambahan berkas"
+        then: "parser menahan byte tersebut di buffer parsial dan tidak memicu JSON parse error"
+      - id: AC-F01-4
+        given: "sub-agen menulis event terstruktur (toolCall, toolResult, thinking, text)"
+        when: "tailSession() mem-parsing baris baru"
+        then: "menghasilkan array typed SessionEvent dengan timestamp dan payload yang valid"
+    kill_criteria:
+      - "Jika stat polling membebani CPU > 3% pada sistem lambat, tingkatkan debounce interval dari 500ms ke 1000ms"
+    estimate: "M"
+    scoring_impact: "TEA-01, TEA-08, TEA-15"
+
+  - id: F-02
+    epic: EPIC-F
+    title: "ANSI Terminal Box & Layout Engine"
+    description: |
+      Membangun mesin perender terminal berbasis escape sequences VT100 murni di src/tui/terminal.ts.
+      Menghitung dimensi layar (columns x rows), merender border kotak Unicode/ASCII,
+      mengukur panjang teks tampak (stripping ANSI codes), dan memotong teks secara aman tanpa kebocoran warna.
+    tea_tier: "P0"
+    priority: "P0"
+    depends_on: []
+    target_files:
+      - "src/tui/terminal.ts"
+      - "test/tui_terminal.test.ts"
+    ac:
+      - id: AC-F02-1
+        given: "string memuat kode warna ANSI kompleks seperti '\\x1b[32;1mHello\\x1b[0m'"
+        when: "stripAnsi() dan visibleLength() dipanggil"
+        then: "mengembalikan teks polos 'Hello' dan panjang visual persis 5 karakter"
+      - id: AC-F02-2
+        given: "string panjang yang melebihi batas kolom visual yang ditentukan"
+        when: "truncateAnsi(text, maxWidth) dipanggil"
+        then: "memotong teks di batas visual yang tepat dan selalu menyisipkan reset '\\x1b[0m' di akhir"
+      - id: AC-F02-3
+        given: "dimensi terminal minimal 80x24 dan spesifikasi split-pane"
+        when: "renderBox() dipanggil"
+        then: "menghasilkan bingkai kotak tertutup dengan sudut dan garis sambung yang presisi"
+      - id: AC-F02-4
+        given: "sinyal perubahan ukuran jendela SIGWINCH diterima"
+        when: "onResize handler terpicu"
+        then: "memperbarui dimensi internal dan memicu render ulang seluruh antarmuka"
+    kill_criteria: []
+    estimate: "M"
+    scoring_impact: "TEA-01, TEA-08, TEA-17"
+
+  - id: F-03
+    epic: EPIC-F
+    title: "Story Kanban & Active Contract Inspector Pane"
+    description: |
+      Mengimplementasikan panel Kanban dan kartu inspeksi story aktif di src/tui/panes/stories.ts.
+      Menampilkan daftar seluruh story dengan glif status visual, prioritas, retries,
+      dan kartu detail kontrak spesifikasi mikro (Intent, Target Files, Acceptance Criteria).
+    tea_tier: "P0"
+    priority: "P0"
+    depends_on: ["F-01", "F-02"]
+    target_files:
+      - "src/tui/panes/stories.ts"
+      - "test/tui_stories.test.ts"
+    ac:
+      - id: AC-F03-1
+        given: "daftar story dengan status beragam (done, in-progress, backlog, failed, paused)"
+        when: "renderStoriesTable() dipanggil"
+        then: "merender glif yang tepat: ✔ untuk done, ▶ untuk in-progress, ⏳ untuk backlog, ✖ untuk failed"
+      - id: AC-F03-2
+        given: "story yang sedang dipilih atau aktif"
+        when: "renderStoryDetailCard() dipanggil"
+        then: "menampilkan judul story, TEA tier, target files, dan daftar Acceptance Criteria Gherkin"
+      - id: AC-F03-3
+        given: "lebar panel story terbatas pada sidebar kiri (misal 30 kolom)"
+        when: "tabel dirender"
+        then: "judul story dipotong secara anggun tanpa merusak perataan border kanan"
+    kill_criteria: []
+    estimate: "S"
+    scoring_impact: "TEA-01, TEA-15, TEA-22"
+
+  - id: F-04
+    epic: EPIC-F
+    title: "Live Event Stream Viewer & Thinking Toggle"
+    description: |
+      Mengimplementasikan penampil aliran aksi sub-agen secara real-time di src/tui/panes/stream.ts.
+      Memformat event tool call (BASH, EDIT, READ, WRITE) dengan badge warna yang jelas,
+      mendukung live tailing log uji Elixir, dan menyediakan toggle tombol 't' untuk inspeksi chain-of-thought.
+    tea_tier: "P0"
+    priority: "P0"
+    depends_on: ["F-01", "F-02"]
+    target_files:
+      - "src/tui/panes/stream.ts"
+      - "test/tui_stream.test.ts"
+    ac:
+      - id: AC-F04-1
+        given: "event toolCall masuk dari stream sesi"
+        when: "formatEventRow() dipanggil"
+        then: "menghasilkan baris dengan label badge: ⚡ BASH, ✏️ EDIT, 📖 READ, atau 📝 WRITE beserta argumen singkatnya"
+      - id: AC-F04-2
+        given: "mode showThinking bernilai false (default)"
+        when: "renderStreamPane() memproses event thinking"
+        then: "event thinking diabaikan dari tampilan log agar antarmuka tetap bersih dan ringkas"
+      - id: AC-F04-3
+        given: "pengguna mengaktifkan showThinking menjadi true via hotkey 't'"
+        when: "renderStreamPane() memproses event thinking"
+        then: "menampilkan blok penalaran internal dengan gaya teks redup (dim) dan prefiks 💭 [THINK]"
+      - id: AC-F04-4
+        given: "pengguna berpindah ke tab Test Logs"
+        when: "renderStreamPane() dipanggil"
+        then: "menampilkan tailing berkas log uji terbaru dari direktori tmp/test-logs/"
+    kill_criteria: []
+    estimate: "M"
+    scoring_impact: "TEA-01, TEA-08, TEA-24"
+
+  - id: F-05
+    epic: EPIC-F
+    title: "CLI Subcommand Integration, Keyboard Navigation & Lifecycle Hygiene"
+    description: |
+      Mengintegrasikan seluruh komponen TUI ke dalam satu controller di src/tui/index.ts dan mendaftarkan
+      subcommand 'ompimpa tui' pada src/cli.ts. Menangani navigasi keyboard raw-mode, auto-discovery
+      direktori target, dan penjaminan pembersihan terminal (alternate buffer restore, cursor restore).
+    tea_tier: "P1"
+    priority: "P1"
+    depends_on: ["F-03", "F-04"]
+    target_files:
+      - "src/tui/index.ts"
+      - "src/cli.ts"
+      - "test/tui_cli.test.ts"
+    ac:
+      - id: AC-F05-1
+        given: "terminal dalam mode interaktif raw-mode"
+        when: "tombol ArrowUp atau ArrowDown ditekan"
+        then: "indeks story terpilih berpindah ke atas atau ke bawah secara melingkar atau bounded"
+      - id: AC-F05-2
+        given: "pengguna menekan tombol Tab"
+        when: "handleKey() diproses"
+        then: "tab aktif panel kanan berganti secara siklikal antara 'Live Activity', 'Test Log', dan 'Spec'"
+      - id: AC-F05-3
+        given: "pengguna menekan 'q' atau sinyal SIGINT (Ctrl+C)"
+        when: "TUI dimatikan"
+        then: "raw mode dinonaktifkan, alternate buffer dipulihkan, kursor ditampilkan, dan proses exit 0"
+      - id: AC-F05-4
+        given: "perintah 'ompimpa tui' dijalankan dengan opsi --dir atau default cwd"
+        when: "argumen diparsing di src/cli.ts"
+        then: "menemukan direktori proyek yang valid dan meluncurkan event loop TUI"
+    kill_criteria: []
+    estimate: "M"
+    scoring_impact: "TEA-01, TEA-17, TEA-35"

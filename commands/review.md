@@ -11,6 +11,8 @@ $$\text{Panel 10} = \underbrace{\text{4 BMAD Spec Lenses}}_{\text{Fungsional \& 
 > 🛡️ **Invarian INV-01 Reinforced (Anti-Inline Review — ADR-001 & ADR-002):**  
 > Evaluasi kualitas pada fase review WAJIB di-dispatch melalui batch tool `task` dengan mode terisolasi (`isolated: true`) ke 10 subagent independen.  
 > Dilarang keras melakukan mocking scanner regex inline di thread utama atau menimpa temuan subagent nyata demi mencegah bias konfirmasi.
+>
+> 🛡️ **Fail-closed (ditegakkan di `src/reviewer.ts:runReview`):** bila `review --story <ID>` dipanggil tanpa satu pun berkas `_ompimpa/review/<ID>-*.json` terisolasi, vonis langsung **BLOCKED + P0** tanpa fallback scan inline. Outer loop (`ompimpa dev`) selalu memanggil `review --story <ID>` sehingga review inline tidak mungkin lolos gerbang.
 
 ---
 
@@ -165,3 +167,15 @@ Setiap subagent wajib menuliskan berkas JSON valid berupa array temuan (*array o
                                • Evaluasi penalti deterministik 35-Row Registry v2 (-30/-15/-5/-2).
                                • Penerbitan Skor Akhir (100/100 PASS) atau Remediation Plan.
 ```
+
+---
+
+## Kontrak Bukti (anti PASS palsu)
+
+- Berkas `[]` yang ditulis `dispatchIsolatedReview` adalah **reservasi slot**,
+  bukan bukti review. Triage menghitungnya bersih **hanya** bila ada marker sesi
+  review completed (`<ID>.review.result.json`) yang mencakup file tersebut;
+  tanpa marker, `[]` = P1 `reviewer-no-evidence`.
+- Headless (`--auto`): 1 sesi REVIEW/story fan-out via `task` ke 10 subagent,
+  tiap subagent menulis JSON bervonis (`high/medium/low/false/maybe-false` +
+  `evidence`). CLI tidak pernah mensintesis isi temuan (D-03).

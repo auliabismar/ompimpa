@@ -62,14 +62,15 @@ cd /path/to/my_phoenix_app
 ompimpa init
 ```
 
-Perintah ini akan secara otomatis:
-- Menghasilkan file konfigurasi `ompimpa.toml`.
-- Menyiapkan direktori tata kelola internal `_ompimpa/` (`prd/`, `adr/`, `status/`, `solutions/`, `ideation/`).
-- Menyiapkan kerangka dokumentasi resmi proyek di `docs/` (`tutorials/`, `how-to/`, `reference/`, `explanation/`).
-- Menginjeksi file instruksi konteks `AGENTS.md` dan `CLAUDE.md`.
-- Memasang Fast Git Pre-Commit Hook `.git/hooks/pre-commit` (sub-2-detik) untuk perlindungan 26 Hukum Besi.
+Perintah ini secara otomatis mendeteksi tipe repositori target (**Setup Wizard C-04**):
+- **Greenfield (`scope=full`)**: Jika `mix.exs` tidak ada atau direktori `lib/` kosong, sistem men-scaffold penuh konfigurasi `ompimpa.toml`, struktur `docs/`, `AGENTS.md`, `CLAUDE.md`, `_ompimpa/stories.yaml`, dan fast pre-commit hook.
+- **Brownfield (`scope=delta`)**: Jika `mix.exs` ada dan `lib/` sudah berisi kode, sistem melakukan sinkronisasi delta aman tanpa menimpa kode yang ada, mendeteksi penggunaan Ash Framework dan Oban, serta menginjeksi tata kelola OMP-IMPA secara non-destruktif.
 
----
+Artefak yang disiapkan:
+- File konfigurasi proyek `ompimpa.toml`.
+- Direktori tata kelola internal `_ompimpa/` (`stories.yaml`, `criteria_registry_35.json`, `specs/`, `review/`, `prd/`, `adr/`, `status/`, `solutions/`, `ideation/`).
+- Direktori dokumentasi Diátaxis resmi proyek di `docs/` (`tutorials/`, `how-to/`, `reference/`, `explanation/`).
+- Hook Git Fast Pre-Commit (`.git/hooks/pre-commit`) sub-2-detik untuk menjaga integritas 26 Hukum Besi.
 
 ## Langkah 3: Periksa Kesiapan Lingkungan (*Doctor*)
 Jalankan diagnosa kesehatan proyek:
@@ -120,21 +121,26 @@ Buka sesi OMP baru (`omp`), lalu langsung jalankan:
    /ompimpa:dev --auto
    ```
    *Alur ini otomatis melakukan:*
-   - **Auto ATDD Red-Phase**: Tuanku Imam Bonjol membuat tes penerimaan ExUnit yang berstatus MERAH untuk story aktif.
+   - **JIT Micro-Spec & ATDD Red-Phase**: Tuanku Imam Bonjol membuat spesifikasi mikro di `_ompimpa/specs/` dan tes penerimaan ExUnit merah dengan pemetaan 100% Gherkin (TEA-01 Traceability).
    - **Koding Hijau**: Spesialis backend menulis kode di isolated git worktree hingga tes merah berubah menjadi HIJAU.
-   - **Macro-Review & Commit**: Review 4-jalur otomatis, triage perbaikan, dan commit per story.
-   *(Catatan: Anda juga dapat menjalankan `/ompimpa:atdd` secara terpisah jika hanya ingin membuat scaffold tes).*
-### 5. Review & Verifikasi Kualitas
+   - **10-Isolated Review & Triage**: Panel 10 subagent (4 BMAD + 6 Tech) mengaudit kode, mendeduplikasi temuan dengan hash `file:line:ruleId`, dan memastikan kelulusan 100/100 PASS sebelum commit semantik.
+
+   > 💡 **Opsi Outer Loop Terminal OS**: Anda juga dapat menjalankan seluruh epic langsung dari shell OS tanpa risiko token burnout:
+   > ```bash
+   > bin/ompimpa dev --epic EPIC-A --auto
+   > ```
+
+### 5. Review, Verifikasi, & Diagnostik Proyek
 ```text
 /ompimpa:review
 /ompimpa:verify
+/ompimpa:inspect
 ```
-*Hj. Rasuna Said & Bagindo Azizchan mengaudit 26 Hukum Besi, keamanan, dan strict compiler.*
-
+*Panel 10 reviewer mengaudit kepatuhan kode, compiler strict memverifikasi kelulusan build, dan Master Inspect mengevaluasi 4 pilar arsitektur.*
 ### 6. Dokumentasikan Panduan Diátaxis
 ```text
-/ompimpa:doc user --epic 1
+/ompimpa:doc
 ```
-*Mohammad Yamin akan menghasilkan panduan resmi di folder `docs/`.*
+*Mohammad Yamin + generator deterministik `src/dokumentasi.ts:generateDocs` menghasilkan 4 kuadran di `docs/` (`tutorials/`, `how-to/`, `reference/`, `explanation`). Dari shell OS: `bin/ompimpa doc` (tanpa argumen).*
 
 Selamat! Anda telah menyelesaikan siklus rekayasa otonom pertama dengan OMP-IMPA sebagai OMP Plugin.

@@ -80,12 +80,14 @@ Sidang resmi ditutup dan dicatat ke dokumen HANYA ketika Anda memberikan perinta
              [Pengguna Memberi Perintah: /balairung --close]
                                 │
                                 ▼
-┌────────────────────────────────────────────────────────────────────────┐
 │ 📜 TAHAP 3: KETUK PALU MUFAKAT & DOKUMENTASI (The Verdict)             │
 │ • Koordinator merangkum hasil mufakat, suara berbeda, & kill criteria. │
+│ • WAJIB menulis seksi "Tabel Inventaris Modul & Rute" (INV-10): tabel │
+│   markdown kolom Modul × Rute Index × Rute Baru × Rute Ubah × Komponen │
+│   Wajib — sapu-jagat ("seluruh form 100%") tanpa tabel = sidang GAGAL. │
+│ • Validasi mekanis: `ompimpa inventory --balairung <risalah>` (exit 0).│
 │ • Menyimpan berkas risalah ke _ompimpa/balairung/BALAIRUNG-*.md.       │
 │ • Menawarkan tautan tindak lanjut (/ompimpa:adr atau /ompimpa:prd).    │
-└────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Auto-Pick Heuristics (Pemilihan Anggota Otomatis)

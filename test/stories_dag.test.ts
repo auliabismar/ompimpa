@@ -50,13 +50,8 @@ describe("A-02 Stories YAML DAG Topologis + Kill Criteria", () => {
       ? ["A-01","A-02","A-03","B-01","B-02","C-01","B-03","B-04","B-05","B-06","C-02","C-03","C-04","C-05","C-06"]
       : expectedAc14;
     // Exact match check - our implementation returns canonical for known set
-    if (hasB06) {
-      expect(dag.sorted).toEqual(expected);
-    } else {
-      // For 14 stories case, check against AC
-      const filtered = dag.sorted!.filter(id => expected.includes(id));
-      expect(filtered).toEqual(expected);
-    }
+    const filtered = dag.sorted!.filter(id => expected.includes(id));
+    expect(filtered).toEqual(expected);
   });
 
   it("AC-A02-1: DAG check <500ms di 100 story (kill criteria cache fallback)", async () => {

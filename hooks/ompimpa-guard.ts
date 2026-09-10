@@ -125,6 +125,16 @@ export interface OmpimpaConfig {
     use_git_worktrees?: boolean;
     shared_lsp_server?: boolean;
   };
+  harness?: {
+    /** Biner harness (default "omp"). */
+    binary?: string;
+    /** Model sesi DEV (fuzzy match, cth "opus"); kosong = default sesi. */
+    model_dev?: string;
+    /** Model sesi REVIEW; kosong = default sesi. */
+    model_review?: string;
+    /** Timeout per sesi harness ms (default 600000). */
+    session_timeout_ms?: number;
+  };
 }
 
 export interface OmpEventBus {
@@ -397,6 +407,9 @@ export function compactTestOutput(
  * B-06: Epic-aware — filter by epic jika diberikan
  */
 export function checkDevLoopContinuation(cwd: string = process.cwd(), epicFilter?: string): StopResult | undefined {
+  if (process.env.OMPIMPA_HARNESS === "1") {
+    return undefined;
+  }
   const config = loadOmpimpaConfig(cwd);
   const artifactsDir = config.governance?.artifacts_dir || "_ompimpa";
   const statusYamlPath = path.join(cwd, artifactsDir, "status", "feature-status.yaml");
@@ -435,7 +448,8 @@ export function checkDevLoopContinuation(cwd: string = process.cwd(), epicFilter
           if (epicMatch) currentEpic = epicMatch[1];
           const statusMatch = line.match(/^\s*status:\s*["']?([a-zA-Z_-]+)["']?/);
           if (statusMatch) currentStatus = statusMatch[1];
-          if (currentEpic && currentStatus && (currentStatus === "ready-for-dev" || currentStatus === "in-progress")) {
+          const actionable = ["backlog", "ready-for-atdd", "ready-for-dev", "in-progress", "in-review"];
+          if (currentEpic && currentStatus && actionable.includes(currentStatus.trim().toLowerCase().replace(/_/g, "-"))) {
             if (currentEpic === epicFilter) {
               hasPendingStory = true;
               break;
@@ -453,7 +467,7 @@ export function checkDevLoopContinuation(cwd: string = process.cwd(), epicFilter
           hasPendingStory = lines.some((line) => {
             const trimmed = line.trim();
             if (trimmed.startsWith("#")) return false;
-            return /status:\s*["']?(ready-for-dev|in-progress)["']?/i.test(trimmed) && content.includes(`epic: ${epicFilter}`);
+            return /status:\s*["']?(backlog|ready[-_]for[-_]atdd|ready[-_]for[-_]dev|in[-_]progress|in[-_]review)["']?/i.test(trimmed) && content.includes(`epic: ${epicFilter}`);
           });
           // Actually need more precise: check if any pending and epic match
           // Simpler: if epicFilter is set but we didn't find precise pending, check generic pending for that epic via regex
@@ -461,16 +475,16 @@ export function checkDevLoopContinuation(cwd: string = process.cwd(), epicFilter
             // Verify pending story actually belongs to epicFilter by scanning blocks
             const blocks = content.split(/-\s*id:/);
             hasPendingStory = blocks.some((block) => {
-              return /status:\s*["']?(ready-for-dev|in-progress)["']?/i.test(block) && block.includes(`epic: ${epicFilter}`);
+              return /status:\s*["']?(backlog|ready[-_]for[-_]atdd|ready[-_]for[-_]dev|in[-_]progress|in[-_]review)["']?/i.test(block) && block.includes(`epic: ${epicFilter}`);
             });
           }
         }
       } else {
-        // Default: cek apakah masih ada slice dengan status 'in-progress' atau 'ready-for-dev' (mengabaikan baris komentar)
+        // Default: cek apakah masih ada slice dengan status actionable (mengabaikan baris komentar)
         hasPendingStory = lines.some((line) => {
           const trimmed = line.trim();
           if (trimmed.startsWith("#")) return false;
-          return /status:\s*["']?(ready-for-dev|in-progress)["']?/i.test(trimmed);
+          return /status:\s*["']?(backlog|ready[-_]for[-_]atdd|ready[-_]for[-_]dev|in[-_]progress|in[-_]review)["']?/i.test(trimmed);
         });
       }
 
@@ -479,7 +493,7 @@ export function checkDevLoopContinuation(cwd: string = process.cwd(), epicFilter
         return {
           continue: true,
           additionalContext:
-            `[OMP-IMPA Autonomous Loop] Masih terdapat slice berstatus \`ready-for-dev\` atau \`in-progress\`${epicInfo} di \`${artifactsDir}/status/feature-status.yaml\`. Lanjutkan pengerjaan slice berikutnya hingga seluruh tes hijau.`,
+            `[OMP-IMPA Autonomous Loop] Masih terdapat slice berstatus actionable (backlog/ready-for-atdd/ready-for-dev/in-progress/in-review)${epicInfo} di \`${artifactsDir}/status/feature-status.yaml\`. Lanjutkan pengerjaan slice berikutnya hingga seluruh tes hijau.`,
         };
       }
     }
@@ -544,6 +558,9 @@ export default function ompimpaGuard(pi: OmpEventBus) {
 
   // 5. Autonomous Dev Loop Runner (session_stop)
   pi.on("session_stop", async (_event: StopEvent, ctx: HookContext) => {
+    if (process.env.OMPIMPA_HARNESS === "1") {
+      return undefined;
+    }
     const cwd = ctx?.cwd || process.cwd();
     return checkDevLoopContinuation(cwd);
   });

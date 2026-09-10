@@ -1,6 +1,11 @@
-# OMP-IMPA Project Rules
+# OMP-IMPA Project Rules — {{projectType}} (scope={{scope}})
 
 ## Aturan Inti
 - Jalankan `/review` sebelum melakukan commit kode.
 - Jalankan `/verify` untuk memastikan seluruh tes hijau dan tidak ada warning kompilator.
 - Patuhi 26 Hukum Besi Elixir yang tercantum di `AGENTS.md`.
+
+## Varian Wizard (C-04)
+> **Type:** {{projectType}} — **Scope:** `{{scope}}`
+> - Greenfield `scope=full`: scaffold penuh dari nol (tanpa `mix.exs`).
+> - Brownfield `scope=delta`: `mix.exs` ada & `lib/` tidak kosong → tulis Brownfield scope=delta, deteksi Ash/Oban dari mix.exs, jangan overwrite kode existing.

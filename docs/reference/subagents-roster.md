@@ -36,7 +36,7 @@ Dokumen referensi (*Information-Oriented*) ini merinci 14 agen spesialis OMP-IMP
 
 ### 5. `ompimpa-test` — [Tuanku Imam Bonjol](https://id.wikipedia.org/wiki/Tuanku_Imam_Bonjol)
 * **Tokoh:** Pemimpin Perang Padri, arsitek strategi pertahanan berlapis (*Benteng Bonjol*), Pahlawan Nasional dari Bonjol, Pasaman.
-* **Domain Teknis:** Matriks risiko P1-P4, scaffolding tes merah (*Red-Phase ATDD*), dan audit mutu pengujian (Scorecard $\ge 90$).
+* **Domain Teknis:** Matriks risiko P1-P4, scaffolding tes merah (*Red-Phase ATDD*), dan audit mutu pengujian (Scorecard 100/100 v2: -30/-15/-5/-2, PASS hanya 100).
 * **Karakter:** Disiplin benteng pertahanan bertingkat, pantang melangkah tanpa benteng pengujian yang kokoh.
 
 ---
@@ -100,3 +100,23 @@ Dokumen referensi (*Information-Oriented*) ini merinci 14 agen spesialis OMP-IMP
 * **Tokoh:** Sastrawan pelopor, sejarawan, perumus naskah Sumpah Pemuda 1928, dan perancang Konstitusi UUD 1945 dari Talawi, Sawahlunto.
 * **Domain Teknis:** Arsitektur dokumentasi terstruktur 4 kuadran Diátaxis (User's, Admin's, Developer's Guide) di folder `docs/`.
 * **Karakter:** Pujangga penata bahasa resmi, terstruktur, komprehensif, dan memiliki standar literasi tinggi.
+
+---
+
+## 🛡️ Panel 10 Reviewer Terisolasi (Dual-Review Architecture)
+
+Saat menjalankan `/ompimpa:review` atau fase review otomatis di `/ompimpa:dev`, OMP-IMPA membentuk panel **10 subagent terisolasi sejati** (`task(isolated: true)`) untuk mencegah *confirmation bias* dan *spec-reality gap* (Story B-01, B-03, D-03):
+
+### A. Lensa Fungsional & Spesifikasi (4 BMAD Lenses)
+1. **`bmad_adversarial`**: Memeriksa potensi bypass batasan, celah abuse fungsional, dan skenario edge-case destruktif.
+2. **`bmad_gap_verifier`**: Memeriksa penelusuran 100% kriteria penerimaan Gherkin (TEA-01 Traceability) terhadap asersi tes di disk.
+3. **`bmad_structural`**: Memeriksa konsistensi hierarki arsitektur, modularitas direktori, dan batas tanggung jawab modul.
+4. **`bmad_completeness`**: Memeriksa kelengkapan seluruh artefak yang dijanjikan dalam spesifikasi mikro tanpa ada potongan kode yang tertinggal.
+
+### B. Panel Kepatuhan Teknis (6 phxagents Specialists)
+5. **`ompimpa-ironlaw`**: Audit semantik terhadap kepatuhan 26 Hukum Besi Elixir & Phoenix.
+6. **`ompimpa-security`**: Audit keamanan perimeter, validasi token, mitigasi XSS, CSRF, dan dependensi Hex.
+7. **`ompimpa-test`**: Penilaian mutu tes (TEA Scorecard 100/100 v2, PASS hanya 100), audit mutation guard, dan anti-flaky test.
+8. **`ompimpa-verify`**: Verifikasi kompilasi strict (`mix compile --warnings-as-errors`) dan format checks.
+9. **`ompimpa-ecto` / `ash`**: Audit query database, pinning operator `^`, pencegahan N+1, dan policies fail-closed.
+10. **`ompimpa-liveview` / `oban`**: Audit lifecycle assigns memori, Streams > 100 baris, dan idempotensi worker Oban.

@@ -14,23 +14,27 @@ Di lingkungan AI coding agent:
 Jika status pekerjaan (mana story yang selesai, mana yang sedang dikerjakan) hanya disimpan di memori proses, **seluruh konteks pekerjaan akan lenyap saat sesi terputus**.
 
 ### Solusi OMP-IMPA:
-1. File fisik `docs/status/feature-status.yaml` (atau `sprint-status.yaml`) dicatat di disk dan di-commit ke Git.
-2. Saat perintah `/ompimpa:dev` dipanggil di sesi baru, agen cukup membaca berkas YAML tersebut dan langsung melanjutkan tepat di story yang berstatus `ready-for-dev`.
-
+1. **Master Stories DAG (`_ompimpa/stories.yaml`)**:
+   Menyimpan seluruh story sebagai Directed Acyclic Graph (DAG) terurut topologis lengkap dengan relasi dependensi (`blocked_by`), kepemilikan epic, dan *kill criteria* eksplisit (Story A-02).
+2. **Feature Status Tracker (`_ompimpa/status/feature-status.yaml`)**:
+   Mencatat state real-time per story sesuai `src/status.ts:STATUS_ORDER` (`backlog` → `ready-for-atdd` → `ready-for-dev` → `in-progress` → `in-review` → `done`, plus non-maju `failed`/`blocked`) beserta riwayat jumlah retry. Status actionable (`backlog`, `ready-for-atdd`, `ready-for-dev`, `in-progress`, `in-review`) membuat outer loop terus berjalan.
+3. **Penyelarasan Sesi Otomatis**:
+   Saat perintah `/ompimpa:dev` dipanggil di sesi baru, agen cukup membaca kedua berkas tersebut, memvalidasi bahwa tidak ada dependensi yang memblokir, dan langsung melanjutkan tepat di story yang siap dikerjakan (*ready-for-dev*).
 ---
 
 ## 2. Mengapa Proteksi Circuit Breaker Wajib (*Token Loss Prevention*)?
 
 Dalam rekayasa otonom, ada risiko model AI mencoba memperbaiki bug yang sama berulang-ulang tanpa sadar bahwa ia menemui jalan buntu (*infinite fix loop*). Hal ini dapat menghabiskan ribuan token dalam hitungan menit tanpa hasil.
 
-### Mekanisme Circuit Breaker OMP-IMPA:
-1. Parameter `max_dev_retries = 3` di `ompimpa.toml` menetapkan batas maksimal perulangan perbaikan untuk satu tes/story.
-2. Jika kegagalan terjadi 3 kali berturut-turut:
-   - Loop otomatis **seketika diputus (*tripped*)**.
-   - Agen berhenti memodifikasi kode.
-   - Agen mengumpulkan seluruh log kesalahan dan meminta panduan manusia melalui dialog interaktif `ask`.
-3. Hal ini menjamin bahwa sistem tetap terkendali (*Human-in-the-Loop*) dan mencegah regresi liar.
-
+### Mekanisme Circuit Breaker Dua Lapis:
+1. **Inner Loop / Triage Circuit Breaker (`max_triage_fix_cycles = 3`)**:
+   - Jika hasil review menemukan pelanggaran P0 (Blocker) atau P1 (Warning) sehingga skor < 100, agen otomatis masuk ke siklus remediasi.
+   - Jika setelah 3 siklus perbaikan skor tetap belum mencapai 100/100 PASS, proses berhenti dan meminta arahan manusia via dialog interaktif `ask` (Story B-05).
+2. **Outer Loop Circuit Breaker (`max_dev_retries = 3`)**:
+   - Jika sebuah story gagal pada kompilasi atau tes ATDD merah sebanyak 3 kali berturut-turut, loop koding otomatis diputus (*tripped*).
+   - Agen menampilkan ringkasan stacktrace terkompaksi dan meminta keputusan developer.
+3. **DAG Blocker Circuit**:
+   - Story yang memiliki dependensi belum tuntas (`blocked_by`) secara otomatis diblokir dari antrean eksekusi hingga story prasyarat berstatus `done`.
 ---
 
 ## 3. Manajemen Sumber Daya Mesin & Konkurensi (`[resources]`)
@@ -39,12 +43,9 @@ Alih-alih memaksakan nilai konstan yang kaku (*hardcoded*), alokasi beban komput
 
 ```toml
 [resources]
-max_concurrency = 2              # Batas subagent paralel yang aktif bersamaan (sesuaikan dengan core CPU/RAM)
-use_git_worktrees = true         # Mengisolasi pengerjaan di folder ~/.omp/wt/
-shared_lsp_server = true         # Berbagi 1 instance ElixirLS untuk seluruh agen
+use_git_worktrees = true         # Mengisolasi pengerjaan di folder ~/.omp/wt/ (satu-satunya kunci [resources] di src/cli.ts:handleInit)
 ```
 
 ### Manfaat Pengaturan Ini:
-- **Di Laptop / Mesin Ringan (RAM 8–16 GB)**: Atur `max_concurrency = 2` untuk menjaga sistem tetap dingin dan bebas dari *Out of Memory (OOM)* crash.
-- **Di Server / Workstation Kuat (32+ Core, 64+ GB RAM)**: Naikkan `max_concurrency = 8` untuk mempercepat penyelesaian satu Epic raksasa secara paralel.
-- **Isolasi Folder Kerja**: Mencegah race condition dan file lock pada folder kompilasi `_build/`.
+- **Isolasi Folder Kerja**: Mencegah race condition dan file lock pada folder kompilasi `_build/` via Git Worktrees (`~/.omp/wt/`).
+- **Paralelisme**: Konkurensi DAG subagent hingga 32 task paralel di level OMP Engine, bukan via kunci TOML.

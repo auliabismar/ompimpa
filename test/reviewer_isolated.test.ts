@@ -105,7 +105,29 @@ describe("B-01 Dispatch 7 Isolated Reviewers via task isolated:true", () => {
     };
     const p = buildReviewPanel(panel);
     await dispatchIsolatedReview("B-01", { targetDir: tmp, panel: p });
-    const agg = await aggregateReviews("B-01", { targetDir: tmp, panelIds: p.map((x) => x.id) });
+    const markerFiles = p.map((x) => `B-01-${x.id}.json`);
+    const marker = { role: "review", story: "B-01", completed: true, files: [...markerFiles] };
+    // Bare [] + marker: tetap tanpa bukti → REMEDIATE (kosong harus envelope).
+    const stubbed = await aggregateReviews("B-01", {
+      targetDir: tmp,
+      panelIds: p.map((x) => x.id),
+      sessionMarker: marker,
+    });
+    expect(stubbed.score.verdict).toBe("REMEDIATE");
+    expect(stubbed.findings.some((f) => f.ruleId.includes("reviewer-no-evidence"))).toBeTrue();
+    // Envelope bersih + marker: terverifikasi → PASS.
+    for (const x of p) {
+      await fs.writeFile(
+        path.join(tmp, "_ompimpa", "review", `B-01-${x.id}.json`),
+        JSON.stringify({ reviewer: x.id, story: "B-01", completedAt: "2026-09-08T00:00:00Z", findings: [] }),
+        "utf-8"
+      );
+    }
+    const agg = await aggregateReviews("B-01", {
+      targetDir: tmp,
+      panelIds: p.map((x) => x.id),
+      sessionMarker: marker,
+    });
     expect(agg.missing.length).toBe(0);
     expect(agg.score.verdict).toBe("PASS");
     expect(agg.score.score).toBe(100);
@@ -139,6 +161,19 @@ describe("B-01 Dispatch 7 Isolated Reviewers via task isolated:true", () => {
     };
     const panel = buildReviewPanel(config);
     await dispatchIsolatedReview("B-01", { targetDir: tmp, panel });
+    // Simulasi sesi review completed: envelope bersih + marker mencakup seluruh file panel.
+    for (const m of panel) {
+      await fs.writeFile(
+        path.join(tmp, "_ompimpa", "review", `B-01-${m.id}.json`),
+        JSON.stringify({ reviewer: m.id, story: "B-01", completedAt: "2026-09-08T00:00:00Z", findings: [] }),
+        "utf-8"
+      );
+    }
+    await fs.writeFile(
+      path.join(tmp, "_ompimpa", "review", "B-01.review.result.json"),
+      JSON.stringify({ role: "review", story: "B-01", completed: true, files: panel.map((m) => `B-01-${m.id}.json`) }),
+      "utf-8"
+    );
     const res = await runReview(tmp, { storyId: "B-01" });
     expect(res.findings.some((f) => f.message.includes("Review must be isolated via task"))).toBeFalse();
     // clean code → PASSED

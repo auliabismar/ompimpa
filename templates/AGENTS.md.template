@@ -1,6 +1,11 @@
-# Instruksi Agen OMP-IMPA (Integrated Modular Phoenix Architecture)
+# Instruksi Agen OMP-IMPA (Integrated Modular Phoenix Architecture) — {{projectType}} (scope={{scope}})
 
 Proyek ini dikelola menggunakan metodologi **OMP-IMPA** yang menggabungkan prinsip produk BMAD, keahlian mendalam Elixir/Phoenix, dan mesin eksekusi paralel OMP.
+
+## 0. Varian Setup Wizard (C-04 Greenfield/Brownfield)
+> **Project Type:** {{projectType}} — **Scope:** `{{scope}}`
+> - **Greenfield (scope=full):** `mix.exs` tidak ada atau `lib/` kosong → scaffold penuh `ompimpa.toml`, `docs/`, `AGENTS.md`, `CLAUDE.md`, `pre-commit`, `agents/`.
+> - **Brownfield (scope=delta):** `mix.exs` ada & `lib/` tidak kosong → delta sync: jangan overwrite kode existing, tulis `AGENTS.md`/`CLAUDE.md` dengan penanda Brownfield scope=delta, `policy.toml` merge, deteksi `use_ash_framework`/`use_oban` dari `mix.exs`.
 
 ## 1. Siklus Hidup Terpadu (2 Sesi Bersih)
 * **Sesi 1 — Discovery & Desain Produk (Chat / Diskusi)**:
@@ -30,4 +35,4 @@ Proyek ini dikelola menggunakan metodologi **OMP-IMPA** yang menggabungkan prins
 - Wajib verifikasi `mix compile --warnings-as-errors` dan `mix test` sebelum menyatakan pekerjaan selesai.
 
 ## 3. Konfigurasi Proyek
-Konfigurasi modularitas diatur dalam `ompimpa.toml`.
+Konfigurasi modularitas diatur dalam `ompimpa.toml` (Greenfield full, Brownfield delta — deteksi otomatis dari `mix.exs`+`lib/`).

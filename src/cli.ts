@@ -1,8 +1,9 @@
 import * as fs from "node:fs/promises";
 import * as fsSync from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import { spawn } from "node:child_process";
-import { parseToml, type OmpimpaModelsConfig } from "../hooks/ompimpa-guard";
+import { parseToml, loadOmpimpaConfig, type OmpimpaModelsConfig } from "../hooks/ompimpa-guard";
 import {
   runPrewalkScan,
   type PrewalkScanResult,
@@ -11,11 +12,13 @@ import {
   parseFeatureStatusYaml,
   getBlockedStory,
 } from "./prewalk";
-import { runReview, type ReviewResult } from "./reviewer";
-import { generateStorySpec } from "./story_spec";
-import { aggregateReviews, type AggregateResult } from "./triage";
-import { runEpicLoop } from "./loop_runner";
+import { runReview, dispatchIsolatedReview, loadReviewSessionMarker, buildReviewPanel, type ReviewResult } from "./reviewer";
+import { generateStorySpec, loadStoryDetail, partitionTargetFiles, type StoryDetail, type StoryAC } from "./story_spec";
+import { aggregateReviews, isEnvelopeCleanReport, type AggregateResult } from "./triage";
+import { runEpicLoop, runStoryPhases, updateFeatureStatus, commitStoryChanges, appendSpecLedger } from "./loop_runner";
+import { validateBalairungInventory, checkPrdCoverage } from "./inventory";
 const VERSION = "1.0.0";
+import { runTui } from "./tui/index";
 const REPO_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 
 export const DEFAULT_MODELS: Record<string, string> = {
@@ -23,7 +26,7 @@ export const DEFAULT_MODELS: Record<string, string> = {
   "ompimpa-ideate": "slow",
   "ompimpa-prd": "plan",
   "ompimpa-adr": "plan",
-  "ompimpa-ui": "design",
+  "ompimpa-ui": "vision",
   "ompimpa-test": "default",
   "ompimpa-dev": "default",
   "ompimpa-ash": "default",
@@ -203,11 +206,23 @@ export async function main() {
     case "story":
       await handleStory(args.slice(1));
       break;
+    case "atdd":
+      await handleAtdd(args.slice(1));
+      break;
+    case "inventory":
+      await handleInventory(args.slice(1));
+      break;
     case "code":
       await handleCode(args.slice(1));
       break;
     case "triage":
       await handleTriage(args.slice(1));
+      break;
+    case "status":
+      await handleStatus(args.slice(1));
+      break;
+    case "tui":
+      await handleTui(args.slice(1));
       break;
     case "version":
     case "-v":
@@ -232,6 +247,7 @@ Usage:
 
 Commands:
   init      Initialize OMP-IMPA configuration and agent prompts in current Phoenix project (Greenfield/Brownfield)
+  link      Link plugin into OMP + install \`ompimpa\` CLI shim to ~/.local/bin (one-step installer)
   prewalk   Traverse and scan Elixir code against 26 Iron Laws and TTSR stream rules
   review    Run comprehensive multi-specialist review panel & TEA quality scorecard
   sync      Synchronize ompimpa.toml model tiers into agent frontmatter definitions
@@ -242,9 +258,11 @@ Commands:
   sweep     Promote deferred P2 entries to ready-for-dev (C-02)
   doc       Generate Diátaxis docs deterministically (C-05)
   inspect   Run unified master diagnostic out-of-band & auto-generate EPIC-DEBT (E-03)
-  inspeksi  Alias for inspect (C-06 & E-03)
-  story     Generate JIT micro specification (_ompimpa/specs/SPEC-[ID].md) before ATDD (D-01)
-  code      Execute green-phase code implementation by stack specialist (D-02)
+  triage    Run deterministic deduplication & 100/100 scoring scorecard (D-02)
+  status    Show story/epic status: SPEC, tests, review evidence, triage verdict, ledger, git (read-only)
+  tui       Launch interactive terminal monitoring dashboard for active ompimpa loops
+  atdd      Validate Red-Phase ATDD scaffold (SPEC gate + test files exist) before code
+  inventory Validate Balairung inventory table + PRD coverage gate (anti scope-truncation)
   triage    Run deterministic deduplication & 100/100 scoring scorecard (D-02)
   help      Show this help message
 
@@ -292,10 +310,47 @@ async function handlePrewalk(args: string[]) {
 
 async function handleReview(args: string[]) {
   const targetDir = process.cwd();
-  const targetPaths = args.filter((a) => !a.startsWith("-"));
+  let storyId: string | undefined;
+  let autoDispatch = false;
+  const rest: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === "--auto" || a === "--dispatch") {
+      autoDispatch = true;
+    } else if ((a === "--story" || a === "-s") && args[i + 1]) {
+      storyId = args[i + 1];
+      i++;
+    } else if (a.startsWith("--story=")) {
+      storyId = a.split("=")[1];
+    } else {
+      rest.push(a);
+    }
+  }
+  // Bentuk lama `ompimpa review <STORY_ID>`: kenali ID story posisi tunggal (huruf-angka-hubung, tanpa slash/titik).
+  let targetPaths = rest;
+  if (!storyId && rest.length === 1 && /^[A-Za-z0-9_-]+$/.test(rest[0]) && !rest[0].includes(".")) {
+    storyId = rest[0];
+    targetPaths = [];
+  }
+  if (storyId && targetPaths.length === 0) {
+    try {
+      const { story } = await loadStoryDetail(storyId, targetDir);
+      const { targetFiles, testFiles } = partitionTargetFiles(story, targetDir);
+      targetPaths = [...targetFiles, ...testFiles];
+    } catch {}
+  }
+  if (storyId && autoDispatch) {
+    await dispatchIsolatedReview(storyId, { targetDir });
+  }
   console.log(`\n🛡️ Running OMP-IMPA Multi-Specialist Review Panel in: ${targetDir}`);
+  if (storyId) {
+    console.log(`   Story: ${storyId} (INV-01 isolation enforced — tanpa berkas isolated = P0 BLOCKED)`);
+    if (targetPaths.length > 0) {
+      console.log(`   Target Files (${targetPaths.length}): ${targetPaths.join(", ")}`);
+    }
+  }
 
-  const result: ReviewResult = await runReview(targetDir, { targetPaths });
+  const result: ReviewResult = await runReview(targetDir, { targetPaths, storyId });
 
   console.log(`\n👥 Active Reviewer Panel (${result.activeReviewers.length} Persona):`);
   for (const r of result.activeReviewers) {
@@ -469,7 +524,7 @@ balairung = "slow"              # Dewan Tokoh Balairung (3-Round Deliberation & 
 ideate = "slow"                  # Rohana Kudus & Tan Malaka (Deep TRIZ & First Principles reasoning)
 prd = "plan"                     # H. Agus Salim (Master PRD & Architecture Planning)
 adr = "plan"                     # H. Agus Salim (Architecture Decision Records)
-ui = "design"                    # Marah Rusli (HEEx, Tailwind & Google Stitch Design)
+ui = "vision"                    # Marah Rusli (HEEx, Tailwind & Google Stitch Design)
 test = "default"                 # Tuanku Imam Bonjol (Red-Phase ATDD Scaffolding)
 dev = "default"                  # Backend Specialists (Ash, LiveView, Ecto, Oban, OTP)
 commit = "smol"                 # Semantic Commit Message Generator (feat/fix/test/refactor)
@@ -857,6 +912,47 @@ async function handleVerify(flags: string[]) {
   console.log("\n🏆 100% Quality Gate PASSED: All configured steps green!");
 }
 
+/**
+ * Memasang shim CLI `ompimpa` ke direktori bin milik pengguna yang ada di PATH
+ * (~/.local/bin didahulukan, lalu ~/bin). Idempoten: symlink basi diganti,
+ * berkas nyata tidak pernah ditimpa. Mengembalikan path terpasang atau null.
+ */
+export async function installCliShim(
+  repoRoot: string = REPO_ROOT,
+  binDirs?: string[]
+): Promise<{ installed: string | null; tried: string[] }> {
+  const home = process.env.HOME || os.homedir() || "";
+  const candidates = binDirs || [path.join(home, ".local", "bin"), path.join(home, "bin")];
+  const tried: string[] = [];
+  const source = path.join(repoRoot, "bin", "ompimpa");
+  try {
+    await fs.access(source, fs.constants.X_OK);
+  } catch {
+    return { installed: null, tried: candidates };
+  }
+  const pathDirs = (process.env.PATH || "").split(path.delimiter);
+  for (const dir of candidates) {
+    tried.push(dir);
+    if (!pathDirs.includes(dir)) continue;
+    try {
+      await fs.mkdir(dir, { recursive: true });
+      const dest = path.join(dir, "ompimpa");
+      try {
+        const st = await fs.lstat(dest);
+        if (st.isSymbolicLink()) await fs.unlink(dest);
+        else continue;
+      } catch {
+        // Belum ada — lanjut pasang.
+      }
+      await fs.symlink(source, dest);
+      return { installed: dest, tried };
+    } catch {
+      continue;
+    }
+  }
+  return { installed: null, tried };
+}
+
 async function handleLink(_flags: string[]) {
   console.log(`\n🔗 Linking OMP-IMPA (${REPO_ROOT}) into OMP...`);
   const res = await runCommand("omp", ["plugin", "link", REPO_ROOT]);
@@ -864,8 +960,14 @@ async function handleLink(_flags: string[]) {
     console.log("✅ Successfully linked ompimpa plugin into OMP!");
   } else {
     console.error("❌ Failed to link plugin into OMP.");
-    process.exit(res.code);
   }
+  const shim = await installCliShim(REPO_ROOT);
+  if (shim.installed) {
+    console.log(`✅ CLI tersedia sebagai \`ompimpa\` di ${shim.installed} (contoh: ompimpa dev --epic EPIC-D --auto)`);
+  } else {
+    console.warn(`⚠️ Tidak ada direktori bin di PATH (${shim.tried.join(", ")}). Sementara pakai: bun run bin/ompimpa <command>`);
+  }
+  if (res.code !== 0) process.exit(res.code);
 }
 
 async function handleDev(flags: string[]) {
@@ -874,6 +976,7 @@ async function handleDev(flags: string[]) {
   let epicFilter: string | null = null;
   let storyFilter: string | null = null;
   let auto = false;
+  let noHarness = false;
   for (let i = 0; i < flags.length; i++) {
     const f = flags[i];
     if (f === "--epic" && flags[i + 1]) {
@@ -888,8 +991,23 @@ async function handleDev(flags: string[]) {
       storyFilter = f.split("=")[1];
     } else if (f === "--auto") {
       auto = true;
+    } else if (f === "--no-harness") {
+      noHarness = true;
     }
   }
+  // --auto = opt-in otonom penuh: fase code/review dijalankan sebagai sesi omp
+  // nyata. Tanpa --auto (atau dengan --no-harness): hanya gerbang lokal, kerja
+  // kreatif tetap di sesi interaktif.
+  const ompimpaConfig = loadOmpimpaConfig(targetDir);
+  const harness = auto && !noHarness
+    ? {
+        enabled: true,
+        binary: ompimpaConfig.harness?.binary,
+        modelDev: ompimpaConfig.harness?.model_dev || ompimpaConfig.models?.dev,
+        modelReview: ompimpaConfig.harness?.model_review,
+        sessionTimeoutMs: ompimpaConfig.harness?.session_timeout_ms,
+      }
+    : undefined;
 
   // Load stories.yaml DAG
   const storiesYamlPath = path.join(targetDir, "_ompimpa", "stories.yaml");
@@ -925,7 +1043,7 @@ async function handleDev(flags: string[]) {
   }
   const { doneIds, statusMap } = parseFeatureStatusYaml(statusContent);
 
-  // Handle --story blocker
+  // Handle --story: eksekusi pipeline 5 fase nyata (story → atdd → code → review → triage)
   if (storyFilter) {
     const blocked = getBlockedStory(storyFilter, stories, doneIds);
     if (blocked) {
@@ -933,17 +1051,39 @@ async function handleDev(flags: string[]) {
       process.exit(1);
     }
     const st = statusMap.get(storyFilter);
-    console.log(`▶️ Story ${storyFilter} status: ${st || "unknown"} — ready for dev`);
     if (st === "done") {
-      console.log(`✅ Story ${storyFilter} already done`);
+      console.log(`✅ Story ${storyFilter} already done — tidak ada gap tersisa.`);
+      return;
     }
-    // For single story, we would dispatch dev here; for now just validate
+    console.log(`▶️ Story ${storyFilter} status: ${st || "backlog"} — mengeksekusi 5 fase (story → atdd → code → review → triage).`);
+    await updateFeatureStatus(targetDir, storyFilter, "in-progress", 0);
+    const result = await runStoryPhases(storyFilter, { targetDir, harness });
+    if (!result.success) {
+      console.error(`❌ Story ${storyFilter} gagal pada fase ${result.phases[result.phases.length - 1]?.phase}: ${result.error}`);
+      process.exit(1);
+    }
+    await updateFeatureStatus(targetDir, storyFilter, "done", result.retries);
+    let commitMessage: string | undefined;
+    try {
+      const commitRes = await commitStoryChanges(targetDir, storyFilter);
+      if (commitRes.commitMessage) {
+        commitMessage = commitRes.commitMessage;
+        console.log(`📦 [Auto-Commit] ${commitRes.commitMessage}`);
+      }
+    } catch {}
+    await appendSpecLedger(targetDir, storyFilter, [
+      `done (triage 100/100, retries ${result.retries})`,
+      ...(commitMessage ? [`commit: ${commitMessage}`] : [`commit: skipped (no changes)`]),
+    ]);
+    console.log(`✅ Story ${storyFilter} done — 5 fase lolos, triage 100/100, gap story↔source tertutup.`);
     return;
   }
 
   // Handle --epic
   if (epicFilter) {
-    const epicStories = stories.filter((s) => s.epic === epicFilter);
+    const epicStories = stories.filter(
+      (s) => s.epic === epicFilter || s.epic?.toLowerCase() === epicFilter.toLowerCase()
+    );
     if (epicStories.length === 0) {
       console.error(`❌ Epic ${epicFilter} not found`);
       process.exit(1);
@@ -968,6 +1108,7 @@ async function handleDev(flags: string[]) {
         epicId: epicFilter,
         auto: true,
         targetDir,
+        harness,
       });
       if (!loopResult.success) {
         console.error(`❌ Epic loop stopped: ${loopResult.message}`);
@@ -984,7 +1125,7 @@ async function handleDev(flags: string[]) {
     for (const sid of dag.sorted || []) {
       const st = statusMap.get(sid);
       const blocked = getBlockedStory(sid, stories, doneIds);
-      if (!blocked && (st === "ready-for-dev" || st === "in-progress" || st === "backlog")) {
+      if (!blocked && (st === "ready-for-atdd" || st === "ready-for-dev" || st === "in-progress" || st === "in-review" || st === "backlog")) {
         console.log(`▶️ Next story: ${sid} (status: ${st})`);
         break;
       }
@@ -1096,6 +1237,8 @@ export async function handleStory(flags: string[], repoRoot?: string) {
       console.log(`   • Target Files: ${result.targetFiles.length} berkas implementasi`);
       console.log(`   • Test Files: ${result.testFiles.length} berkas uji ATDD`);
       console.log(`   • Blast Radius: ${result.blastRadius.method} (${result.blastRadius.affectedCallers.length} callers terdampak)`);
+      await updateFeatureStatus(targetDir, result.storyId, "ready-for-atdd", 0);
+      console.log(`   • Status: → ready-for-atdd (milestone spec-ready)`);
       console.log(`👉 Next step: Jalankan \`/atdd ${result.storyId}\` (Tuanku Imam Bonjol) untuk scaffolding tes merah.`);
     }
   } catch (err: unknown) {
@@ -1104,6 +1247,215 @@ export async function handleStory(flags: string[], repoRoot?: string) {
     process.exit(1);
   }
 }
+function pathToElixirModuleName(filePath: string): string {
+  const clean = filePath.replace(/^test\//, "").replace(/\.exs$/, "");
+  const parts = clean.split("/").filter(Boolean);
+  const moduleParts = parts.map((part) =>
+    part
+      .split("_")
+      .map((seg) => seg.charAt(0).toUpperCase() + seg.slice(1))
+      .join("")
+  );
+  const last = moduleParts[moduleParts.length - 1] || "StoryTest";
+  if (!last.endsWith("Test")) {
+    moduleParts[moduleParts.length - 1] = last + "Test";
+  }
+  return moduleParts.join(".");
+}
+
+async function scaffoldAtddTestFile(
+  targetDir: string,
+  testFile: string,
+  story: StoryDetail
+): Promise<void> {
+  const fullPath = path.join(targetDir, testFile);
+  await fs.mkdir(path.dirname(fullPath), { recursive: true });
+
+  if (testFile.endsWith(".exs")) {
+    const moduleName = pathToElixirModuleName(testFile);
+    const tests = (story.ac || [])
+      .map(
+        (ac: StoryAC) => `  @tag :tea_01
+  test "${ac.id}: ${String(ac.given || "").slice(0, 30).replace(/"/g, "'")} -> ${String(ac.then || "").slice(0, 40).replace(/"/g, "'")}" do
+    flunk("Red-Phase ATDD (TEA-01): ${ac.id} belum diimplementasikan - Given ${String(ac.given || "").replace(/"/g, '\\"')}, When ${String(ac.when || "").replace(/"/g, '\\"')}, Then ${String(ac.then || "").replace(/"/g, '\\"')}")
+  end`
+      )
+      .join("\n\n");
+
+    const content = `defmodule ${moduleName} do
+  use ExUnit.Case, async: true
+  @moduletag :atdd
+
+  @moduledoc """
+  Red-Phase ATDD untuk Story ${story.id}: ${story.title}
+  Kriteria Penerimaan (TEA-01 Traceability):
+${(story.ac || []).map((ac: StoryAC) => `  - ${ac.id}: Given ${ac.given} When ${ac.when} Then ${ac.then}`).join("\n")}
+
+  Status: MERAH (failing by design) sampai fase koding menutup gap implementasi.
+  """
+
+${tests || '  test "placeholder failing test" do\n    flunk("Red-Phase ATDD belum diimplementasikan")\n  end'}
+end
+`;
+    await fs.writeFile(fullPath, content, "utf-8");
+  } else {
+    // TypeScript / Bun test
+    const tests = (story.ac || [])
+      .map(
+        (ac: StoryAC) => `  it("${ac.id}: Given ${String(ac.given || "").replace(/"/g, "'")} When ${String(ac.when || "").replace(/"/g, "'")} Then ${String(ac.then || "").replace(/"/g, "'")}", () => {
+    expect.unreachable("Red-Phase ATDD (TEA-01): ${ac.id} belum diimplementasikan");
+  });`
+      )
+      .join("\n\n");
+    const content = `import { describe, it, expect } from "bun:test";
+
+describe("Red-Phase ATDD Story ${story.id}: ${story.title} (@tea-01)", () => {
+${tests || '  it("placeholder failing test", () => {\n    expect.unreachable("Red-Phase ATDD belum diimplementasikan");\n  });'}
+});
+`;
+    await fs.writeFile(fullPath, content, "utf-8");
+  }
+}
+
+export async function handleAtdd(flags: string[], repoRoot?: string): Promise<void> {
+  const targetDir = repoRoot || process.cwd();
+  let storyId: string | null = null;
+  let autoScaffold = false;
+  for (let i = 0; i < flags.length; i++) {
+    const f = flags[i];
+    if (f === "--auto" || f === "--scaffold") {
+      autoScaffold = true;
+    } else if ((f === "--story" || f === "-s") && flags[i + 1]) {
+      storyId = flags[i + 1];
+      i++;
+    } else if (f.startsWith("--story=")) {
+      storyId = f.split("=")[1];
+    } else if (!f.startsWith("-") && !storyId) {
+      storyId = f;
+    }
+  }
+  if (!storyId) {
+    console.error("❌ Error: Story ID is required. Example: ompimpa atdd D-02");
+    process.exit(1);
+  }
+  const specPath = path.join(targetDir, "_ompimpa", "specs", `SPEC-${storyId}.md`);
+  if (!(await fileExists(specPath))) {
+    console.error(`❌ Invariant Violation (INV-09): Berkas spesifikasi mikro belum ada di ${path.relative(targetDir, specPath)}.`);
+    console.error(`👉 Jalankan 'ompimpa story ${storyId}' terlebih dahulu sebelum scaffolding ATDD.`);
+    process.exit(1);
+  }
+  let testFiles: string[] = [];
+  let acCount = 0;
+  let storyDetail: StoryDetail | null = null;
+  try {
+    const { story } = await loadStoryDetail(storyId, targetDir);
+    storyDetail = story;
+    testFiles = partitionTargetFiles(story, targetDir).testFiles;
+    acCount = story.ac.length;
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`❌ Error: ${msg}`);
+    process.exit(1);
+  }
+  const missing = [];
+  for (const tf of testFiles) {
+    if (!(await fileExists(path.join(targetDir, tf)))) missing.push(tf);
+  }
+  if (missing.length > 0) {
+    if (autoScaffold) {
+      console.log(`\n⚙️ Auto-scaffolding ${missing.length} missing Red-Phase ATDD test file(s) for ${storyId}...`);
+      for (const tf of missing) {
+        await scaffoldAtddTestFile(targetDir, tf, storyDetail);
+        console.log(`   ✅ Created Red-Phase test: ${tf} (@moduletag :atdd, ${acCount} Gherkin failing assertions)`);
+      }
+    } else {
+      console.error(`❌ Red-Phase ATDD belum lengkap untuk ${storyId}: ${missing.length} berkas tes belum di-scaffold.`);
+      for (const m of missing) console.error(`   • hilang: ${m}`);
+      console.error(`👉 Jalankan 'ompimpa atdd ${storyId} --auto' untuk scaffold otomatis, atau tugaskan Tuanku Imam Bonjol menulis tes MERAH.`);
+      process.exit(1);
+    }
+  }
+  await updateFeatureStatus(targetDir, storyId, "ready-for-dev", 0);
+  console.log(`\n🔴 Red-Phase ATDD scaffold lengkap untuk ${storyId}: ${testFiles.length} berkas tes, ${acCount} AC.`);
+  console.log(`   • Status: → ready-for-dev (milestone atdd-red)`);
+  console.log(`👉 Next step: Jalankan '/code ${storyId}' hingga seluruh asersi hijau, lalu '/review ${storyId}'.`);
+}
+
+export async function handleInventory(flags: string[], repoRoot?: string): Promise<void> {
+  const targetDir = repoRoot || process.cwd();
+  let balairungFile: string | null = null;
+  let prdFile: string | null = null;
+  let storiesFile: string | null = null;
+  for (let i = 0; i < flags.length; i++) {
+    const f = flags[i];
+    if (f === "--balairung" && flags[i + 1]) {
+      balairungFile = flags[i + 1];
+      i++;
+    } else if (f.startsWith("--balairung=")) {
+      balairungFile = f.split("=")[1];
+    } else if (f === "--prd" && flags[i + 1]) {
+      prdFile = flags[i + 1];
+      i++;
+    } else if (f.startsWith("--prd=")) {
+      prdFile = f.split("=")[1];
+    } else if (f === "--stories" && flags[i + 1]) {
+      storiesFile = flags[i + 1];
+      i++;
+    } else if (f.startsWith("--stories=")) {
+      storiesFile = f.split("=")[1];
+    } else if (!f.startsWith("-") && !balairungFile) {
+      balairungFile = f;
+    }
+  }
+  if (!balairungFile) {
+    console.error("❌ Error: berkas risalah wajib. Example: ompimpa inventory --balairung _ompimpa/balairung/BALAIRUNG-*.md --prd _ompimpa/prd/PRD-*.md");
+    process.exit(1);
+  }
+  const balairungPath = path.isAbsolute(balairungFile) ? balairungFile : path.join(targetDir, balairungFile);
+  let risalah = "";
+  try {
+    risalah = await fs.readFile(balairungPath, "utf-8");
+  } catch {
+    console.error(`❌ Error: berkas Balairung tidak terbaca: ${balairungFile}`);
+    process.exit(1);
+  }
+  const validation = validateBalairungInventory(risalah);
+  if (!validation.ok) {
+    console.error(`❌ Gerbang Inventaris GAGAL (${path.relative(targetDir, balairungPath)}): sidang belum boleh diketuk.`);
+    for (const e of validation.errors) console.error(`   • ${e}`);
+    process.exit(1);
+  }
+  console.log(`✅ Tabel Inventaris valid: ${validation.rows.length} modul terdaftar.`);
+  if (prdFile) {
+    const prdPath = path.isAbsolute(prdFile) ? prdFile : path.join(targetDir, prdFile);
+    let extra = "";
+    if (storiesFile) {
+      const storiesPath = path.isAbsolute(storiesFile) ? storiesFile : path.join(targetDir, storiesFile);
+      try {
+        extra = await fs.readFile(storiesPath, "utf-8");
+      } catch {
+        console.error(`❌ Error: berkas stories tidak terbaca: ${storiesFile}`);
+        process.exit(1);
+      }
+    }
+    let prd = "";
+    try {
+      prd = await fs.readFile(prdPath, "utf-8");
+    } catch {
+      console.error(`❌ Error: berkas PRD tidak terbaca: ${prdFile}`);
+      process.exit(1);
+    }
+    const coverage = checkPrdCoverage(validation.rows, prd, extra);
+    if (!coverage.ok) {
+      console.error(`❌ Scope-truncation terdeteksi: ${coverage.missing.length} modul inventaris hilang dari PRD.`);
+      for (const m of coverage.missing) console.error(`   • hilang: ${m}`);
+      console.error(`👉 Catat Scope Deferral Record di ADR atau kembalikan modul ke PRD sebelum /story.`);
+      process.exit(1);
+    }
+    console.log(`✅ Cakupan PRD penuh: ${coverage.covered.length}/${validation.rows.length} modul tercakup.`);
+  }
+}
+
 
 export async function handleCode(flags: string[], repoRoot?: string): Promise<void> {
   const targetDir = repoRoot || process.cwd();
@@ -1178,7 +1530,9 @@ export async function handleTriage(flags: string[], repoRoot?: string): Promise<
   }
 
   try {
-    const result = await aggregateReviews(storyId, { targetDir });
+    const reviewDir = path.join(targetDir, "_ompimpa", "review");
+    const sessionMarker = await loadReviewSessionMarker(reviewDir, storyId);
+    const result = await aggregateReviews(storyId, { targetDir, sessionMarker });
 
     if (jsonOutput) {
       console.log(JSON.stringify(result, null, 2));
@@ -1226,9 +1580,189 @@ export async function handleTriage(flags: string[], repoRoot?: string): Promise<
 }
 
 
+/**
+ * Read-only single observability surface: SPEC, tests, review evidence,
+ * triage verdict, run ledger, git. Never writes.
+ */
+export async function handleStatus(flags: string[], repoRoot?: string): Promise<void> {
+  const targetDir = repoRoot || process.cwd();
+  let storyId: string | null = null;
+  for (const f of flags) {
+    if (!f.startsWith("-") && !storyId) storyId = f;
+  }
+
+  const storiesYamlPath = path.join(targetDir, "_ompimpa", "stories.yaml");
+  const fallbackPath = path.join(targetDir, "_ompimpa", "status", "stories.yaml");
+  let storiesContent: string | null = null;
+  try {
+    storiesContent = await fs.readFile(storiesYamlPath, "utf-8");
+  } catch {
+    try {
+      storiesContent = await fs.readFile(fallbackPath, "utf-8");
+    } catch {
+      console.error(`❌ stories.yaml not found at ${storiesYamlPath}`);
+      process.exit(1);
+    }
+  }
+  const stories = parseStoriesYaml(storiesContent!);
+  const statusPath = path.join(targetDir, "_ompimpa", "status", "feature-status.yaml");
+  let statusContent = "";
+  try {
+    statusContent = await fs.readFile(statusPath, "utf-8");
+  } catch {
+    // empty
+  }
+  const { statusMap } = parseFeatureStatusYaml(statusContent);
+  if (!storyId) {
+    const counts: Record<string, number> = {};
+    console.log(`\n📊 OMP-IMPA Status (kanban): ${stories.length} stories`);
+    for (const s of stories) {
+      const st = statusMap.get(s.id) || "backlog";
+      counts[st] = (counts[st] || 0) + 1;
+      const icon = st === "done" ? "✅" : st === "failed" ? "❌" : st === "backlog" ? "⏳" : "▶️";
+      console.log(`  ${icon} ${s.id} [${s.epic}] ${st}`);
+    }
+    console.log(`\nSummary: ${Object.entries(counts).map(([k, v]) => `${k}: ${v}`).join(" | ")}`);
+    return;
+  }
+  const story = stories.find((s) => s.id === storyId);
+  if (!story) {
+    console.error(`❌ Story ${storyId} not found in stories.yaml`);
+    process.exit(1);
+  }
+  let storyTitle = storyId;
+  let targetFiles: string[] = [];
+  let testFiles: string[] = [];
+  try {
+    const detail = (await loadStoryDetail(storyId, targetDir)).story;
+    storyTitle = detail.title || storyId;
+    const parts = partitionTargetFiles(detail, targetDir);
+    targetFiles = parts.targetFiles;
+    testFiles = parts.testFiles;
+  } catch {
+    // story detail unreadable — laporkan apa adanya
+  }
+  const st = statusMap.get(storyId) || "backlog";
+  console.log(`\n📋 Story ${storyId}: ${storyTitle}`);
+  console.log(`   Epic: ${story.epic} | Status: ${st}`);
+  const specRel = `_ompimpa/specs/SPEC-${storyId}.md`;
+  const specExists = await fileExists(path.join(targetDir, specRel));
+  console.log(`   SPEC: ${specRel} ${specExists ? "✅" : "❌ hilang"}`);
+
+  for (const tf of testFiles) {
+    console.log(`   Test: ${tf} ${await fileExists(path.join(targetDir, tf)) ? "✅" : "❌ hilang"}`);
+  }
+
+  const reviewDir = path.join(targetDir, "_ompimpa", "review");
+  const config = loadOmpimpaConfig(targetDir);
+  const panelIds = buildReviewPanel(config).map((m) => m.id);
+  const marker = await loadReviewSessionMarker(reviewDir, storyId);
+  const markerFiles = marker?.files || [];
+  console.log(`   Review evidence: marker ${marker ? "✅ completed" : "❌ tanpa marker sesi"}`);
+  for (const pid of panelIds) {
+    const rel = `${storyId}-${pid}.json`;
+    const full = path.join(reviewDir, rel);
+    let state = "❌ hilang";
+    if (await fileExists(full)) {
+      try {
+        const parsed: unknown = JSON.parse(await fs.readFile(full, "utf-8"));
+        const envelopeClean = isEnvelopeCleanReport(parsed, storyId, pid);
+        const inMarker = markerFiles.includes(rel);
+        if (Array.isArray(parsed)) {
+          state = parsed.length === 0 ? "⚠️ tanpa bukti (stub [])" : "⚠️ legacy (temuan tanpa envelope)";
+        } else if (envelopeClean && inMarker) {
+          state = "✅ terverifikasi";
+        } else if (envelopeClean) {
+          state = "⚠️ envelope tanpa marker sesi";
+        } else {
+          state = "⚠️ tanpa bukti";
+        }
+      } catch {
+        state = "⚠️ tak terbaca";
+      }
+    }
+    console.log(`     • ${pid}: ${state}`);
+  }
+
+  try {
+    const triage = await aggregateReviews(storyId, { targetDir, sessionMarker: marker });
+    console.log(`   Triage: ${triage.score.score}/100 ${triage.score.verdict} (P0:${triage.score.p0Count} P1:${triage.score.p1Count} P2:${triage.score.p2Count}, rejected:${triage.rejected.length})`);
+    for (const r of triage.remediation.slice(0, 3)) {
+      console.log(`     • [${r.severity}] ${r.ruleId} at ${r.file || "global"}${r.line ? `:${r.line}` : ""}`);
+    }
+    if (triage.remediation.length > 3) console.log(`     … +${triage.remediation.length - 3} temuan lain`);
+  } catch {
+    console.log(`   Triage: (gagal dihitung)`);
+  }
+
+  for (const role of ["dev", "review"] as const) {
+    const logRel = `_ompimpa/runs/${storyId}-${role}.log`;
+    const full = path.join(targetDir, logRel);
+    if (!(await fileExists(full))) {
+      console.log(`   Log ${role}: (belum ada sesi)`);
+      continue;
+    }
+    try {
+      const stat = await fs.stat(full);
+      const content = await fs.readFile(full, "utf-8");
+      const lines = content.split("\n").filter((l) => l.trim().length > 0);
+      const head = lines[0]?.startsWith("#") ? lines[0] : "";
+      const tailLines = lines.filter((l) => !l.startsWith("#")).slice(-10);
+      console.log(`   Log ${role}: ${logRel} (diubah ${stat.mtime.toISOString()}) ${head}`);
+      for (const tl of tailLines) console.log(`     │ ${tl.slice(0, 160)}`);
+    } catch {
+      console.log(`   Log ${role}: (tak terbaca)`);
+    }
+  }
+
+  try {
+    const specContent = await fs.readFile(path.join(targetDir, specRel), "utf-8");
+    const ledgerIdx = specContent.indexOf("## 12. Run Ledger");
+    if (ledgerIdx >= 0) {
+      const bullets = specContent
+        .slice(ledgerIdx)
+        .split("\n")
+        .filter((l) => l.startsWith("- ["))
+        .slice(-3);
+      console.log(`   Run ledger:`);
+      for (const b of bullets) console.log(`     ${b}`);
+    } else {
+      console.log(`   Run ledger: (kosong — belum ada vonis terminal)`);
+    }
+  } catch {
+    console.log(`   Run ledger: (SPEC tidak terbaca)`);
+  }
+
+  const logRes = await runCommand("git", ["log", "--oneline", "-3", `--grep=${storyId}`], targetDir, true);
+  const lastCommit = logRes.code === 0 ? logRes.stdout.trim().split("\n")[0] : "";
+  console.log(`   Git commit: ${lastCommit || "(belum ada commit menyebut story ini)"}`);
+  if (targetFiles.length > 0 || testFiles.length > 0) {
+    const dirty = await runCommand("git", ["status", "--porcelain", "--", ...targetFiles, ...testFiles], targetDir, true);
+    const dirtyLines = dirty.stdout.trim();
+    console.log(`   Git worktree: ${dirtyLines ? "ada perubahan belum di-commit" : "bersih"}`);
+    for (const dl of dirtyLines.split("\n").slice(0, 5)) {
+      if (dl.trim()) console.log(`     ${dl.trim()}`);
+    }
+  }
+}
+
 if (import.meta.main) {
   main().catch((err) => {
     console.error("ompimpa error:", err);
     process.exit(1);
   });
+}
+
+async function handleTui(args: string[]): Promise<void> {
+  let targetDir = process.cwd();
+  let showThinking = false;
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--dir" && args[i + 1]) {
+      targetDir = args[i + 1];
+      i++;
+    } else if (args[i] === "--thinking") {
+      showThinking = true;
+    }
+  }
+  await runTui({ targetDir, showThinking });
 }

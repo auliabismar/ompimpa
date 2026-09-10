@@ -55,6 +55,15 @@ steps = ["test", "credo --strict", "sobelow --strict --format json"]
 # ==========================================
 [resources]
 use_git_worktrees = true         # Eksekusi task paralel di Git Worktree terisolasi (~/.omp/wt/)
+
+# ==========================================
+# Harness Headless (ompimpa dev --epic --auto memanggil sesi omp nyata)
+# ==========================================
+[harness]
+binary = "omp"                   # Biner harness yang di-spawn per fase code/review
+#model_dev = "default"           # Model sesi DEV (fuzzy match); kosong = default sesi
+#model_review = "default"        # Model sesi REVIEW; kosong = default sesi
+#session_timeout_ms = 600000    # Timeout per sesi harness (10 menit)
 # ==========================================
 # Pemetaan Model Subagent (Terkoneksi ke OMP Roles)
 # ==========================================
@@ -63,7 +72,7 @@ balairung = "slow"              # Dewan Tokoh Balairung (3-Round Deliberation & 
 ideate = "slow"                  # Rohana Kudus & Tan Malaka (Deep TRIZ & First Principles)
 prd = "plan"                     # H. Agus Salim (Master PRD & Architecture Planning)
 adr = "plan"                     # H. Agus Salim (Architecture Decision Records)
-ui = "design"                    # Marah Rusli (HEEx, Tailwind & Google Stitch Design)
+ui = "vision"                    # Marah Rusli (HEEx, Tailwind & Google Stitch Design)
 test = "default"                 # Tuanku Imam Bonjol (Red-Phase ATDD Scaffolding)
 dev = "default"                  # Backend Specialists (Ash, LiveView, Ecto, Oban, OTP)
 commit = "smol"                # Generator Semantic Commit Message (feat/fix/test/refactor)
