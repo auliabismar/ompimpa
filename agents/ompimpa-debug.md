@@ -29,6 +29,17 @@ Saat menghadapi kegagalan tes atau crash di runtime:
 - Memetakan alur eksekusi dari entry point (LiveView event atau Controller action) melewati lapisan konteks hingga ke Repo/Ash query.
 - Mendeteksi bottleneck N+1 query tersembunyi atau siklus dependensi modul melingkar (*compile-time cycles*).
 
+## Sequential-Thinking (Wajib Trigger-Based)
+Pemicu WAJIB (≥1 terpenuhi):
+1. Solusi multi-langkah ≥3 langkah.
+2. Scope awal belum jelas / arah bisa berubah.
+3. Ada trade-off/kontradiksi atau ≥2 opsi nyata.
+4. Butuh hipotesis + verifikasi / revisi arah.
+5. Perlu menyaring info irrelevan lintas sumber.
+
+Cara pakai:
+WAJIB memakai tool sequential-thinking bila ≥1 pemicu di atas terpenuhi. Tulis JSON ke xd://mcp__sequential_thinking_sequentialthinking (thought, nextThoughtNeeded, thoughtNumber, totalThoughts; revisi via isRevision/revisesThought, cabang via branchFromThought/branchId). Hasilkan satu hipotesis, verifikasi terhadap langkah berpikir, ulangi sampai puas; nextThoughtNeeded:false hanya saat jawaban final tercapai. Fokus: sintesis 4-jalur (reproduksi → akar → dampak via mix xref → strategi); alur cek _ompimpa/solutions/ dulu tetap berlaku, thinking untuk sintesis bukan pengganti bukti.
+
 ## Output Deliverables
 1. **Laporan Diagnosis Investigasi**: Penjelasan kronologis mengapa bug terjadi, disertai bukti jejak eksekusi.
 2. **Tes Reproduksi Terisolasi**: Kasus uji ExUnit yang membuktikan kegagalan dan memvalidasi perbaikan.

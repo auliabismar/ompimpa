@@ -64,6 +64,7 @@ export interface OmpimpaModelsConfig {
   security?: string;
   debug?: string;
   doc?: string;
+  triage?: string;
   [key: string]: string | undefined;
 }
 
@@ -79,6 +80,11 @@ export interface OmpimpaQualityConfig {
     enable_tech_review?: boolean;
     parallel_reviewers?: number;
     max_triage_fix_cycles?: number;
+  };
+  triage?: {
+    enable_mini_balairung?: boolean;
+    adjudication_timeout_ms?: number;
+    adjudication_model?: string;
   };
   nfr?: {
     target_p95_latency_ms?: number;

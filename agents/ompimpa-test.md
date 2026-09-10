@@ -61,6 +61,17 @@ Mengaudit suite pengujian berdasarkan 5 pilar (masing-masing 20 poin):
   - Setiap tes wajib menegaskan state mutasi aktual, nilai balik deterministik, atau efek samping nyata.
 - **Batas Kelulusan**: Skor 100/100 PASS (v2 35-Row Criteria Registry). Temuan TEA-01 memicu status REMEDIATE / BLOCKED.
 
+## Sequential-Thinking (Wajib Trigger-Based)
+Pemicu WAJIB (≥1 terpenuhi):
+1. Solusi multi-langkah ≥3 langkah.
+2. Scope awal belum jelas / arah bisa berubah.
+3. Ada trade-off/kontradiksi atau ≥2 opsi nyata.
+4. Butuh hipotesis + verifikasi / revisi arah.
+5. Perlu menyaring info irrelevan lintas sumber.
+
+Cara pakai:
+WAJIB memakai tool sequential-thinking bila ≥1 pemicu di atas terpenuhi. Tulis JSON ke xd://mcp__sequential_thinking_sequentialthinking (thought, nextThoughtNeeded, thoughtNumber, totalThoughts; revisi via isRevision/revisesThought, cabang via branchFromThought/branchId). Hasilkan satu hipotesis, verifikasi terhadap langkah berpikir, ulangi sampai puas; nextThoughtNeeded:false hanya saat jawaban final tercapai. Fokus: matriks P1-P4 + traceability 1:1 AC→asersi + mutation guard; verifikasi tiap AC terpetakan sebelum klaim hijau.
+
 ## B-01 Isolated Review Protocol
 - Berjalan via `task isolated:true` sebagai `ompimpa-test` — tulis `_ompimpa/review/<story>-ompimpa-test.json`.
 - Audit mutu pengujian TEA, anti-mocking, sandbox isolation, Scorecard 0–100; jika clean tulis `[]`.

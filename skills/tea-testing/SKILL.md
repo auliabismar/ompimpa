@@ -38,3 +38,16 @@ Untuk mencegah *false greens* (tes hijau semu yang tidak menguji logika bisnis),
 
 ### 4. Ambang Kelulusan Scorecard (v2 100/100)
 - Seluruh story wajib mencapai skor **100/100 PASS** tanpa adanya blocker (P0), warning (P1), maupun nits (P2) yang belum terselesaikan.
+
+---
+
+## Sequential-Thinking (Wajib Trigger-Based)
+Pemicu WAJIB (≥1 terpenuhi):
+1. Solusi multi-langkah ≥3 langkah.
+2. Scope awal belum jelas / arah bisa berubah.
+3. Ada trade-off/kontradiksi atau ≥2 opsi nyata.
+4. Butuh hipotesis + verifikasi / revisi arah.
+5. Perlu menyaring info irrelevan lintas sumber.
+
+Cara pakai:
+WAJIB memakai tool sequential-thinking bila ≥1 pemicu di atas terpenuhi. Tulis JSON ke xd://mcp__sequential_thinking_sequentialthinking (thought, nextThoughtNeeded, thoughtNumber, totalThoughts; revisi via isRevision/revisesThought, cabang via branchFromThought/branchId). Hasilkan satu hipotesis, verifikasi terhadap langkah berpikir, ulangi sampai puas; nextThoughtNeeded:false hanya saat jawaban final tercapai. Fokus: matriks P1-P4 → red-phase → TEA-01 traceability → mutation guard; tolak klaim lolos bila 1 AC tak terpetakan.

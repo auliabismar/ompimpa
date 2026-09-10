@@ -21,11 +21,11 @@
       "to": "lib/accounts.ex"
     }
   ],
-  "generated_at": "2026-09-10T09:39:55.401Z",
+  "generated_at": "2026-09-10T11:30:49.663Z",
   "target_dir": "/home/aulia/ompimpa",
   "stats": {
     "total_files": 10,
-    "elapsed_ms": 574,
+    "elapsed_ms": 679,
     "method": "regex_scan"
   },
   "blast_radius_example": {

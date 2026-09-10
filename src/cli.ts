@@ -14,7 +14,8 @@ import {
 } from "./prewalk";
 import { runReview, dispatchIsolatedReview, loadReviewSessionMarker, buildReviewPanel, type ReviewResult } from "./reviewer";
 import { generateStorySpec, loadStoryDetail, partitionTargetFiles, type StoryDetail, type StoryAC } from "./story_spec";
-import { aggregateReviews, isEnvelopeCleanReport, type AggregateResult } from "./triage";
+import { aggregateReviews, isEnvelopeCleanReport, calculateScore, remediationPlan, type AggregateResult } from "./triage";
+import { detectContestedFindings, applyAdjudicationResults, runAdjudicationTask } from "./mini_balairung";
 import { runEpicLoop, runStoryPhases, updateFeatureStatus, commitStoryChanges, appendSpecLedger } from "./loop_runner";
 import { validateBalairungInventory, checkPrdCoverage } from "./inventory";
 const VERSION = "1.0.0";
@@ -258,12 +259,14 @@ Commands:
   sweep     Promote deferred P2 entries to ready-for-dev (C-02)
   doc       Generate Diátaxis docs deterministically (C-05)
   inspect   Run unified master diagnostic out-of-band & auto-generate EPIC-DEBT (E-03)
+  story     Scaffold JIT micro-specification SPEC-[ID].md (D-01)
+  atdd      Validate Red-Phase ATDD scaffold (SPEC gate + test files exist) before code (E-01)
+  code      Execute isolated green coding phase per story (D-02)
+  review    Run comprehensive multi-specialist review panel & TEA quality scorecard
   triage    Run deterministic deduplication & 100/100 scoring scorecard (D-02)
   status    Show story/epic status: SPEC, tests, review evidence, triage verdict, ledger, git (read-only)
   tui       Launch interactive terminal monitoring dashboard for active ompimpa loops
-  atdd      Validate Red-Phase ATDD scaffold (SPEC gate + test files exist) before code
   inventory Validate Balairung inventory table + PRD coverage gate (anti scope-truncation)
-  triage    Run deterministic deduplication & 100/100 scoring scorecard (D-02)
   help      Show this help message
 
 Options:
@@ -272,6 +275,9 @@ Options:
   --oban        Force enable Oban background job worker configuration
   --no-oban     Force disable Oban presets
   --force       Overwrite existing configuration files
+  --adjudicate  Force enable Tier 2.5 Mini Balairung adjudication
+  --no-adjudicate Disable Tier 2.5 adjudication (use 0-token deterministic fallback)
+  --adjudication-timeout-ms <n> Adjudication timeout in milliseconds (default: 30000)
 
 Plugin Installation:
   Global Install (Git):      omp plugin install github:auliabismar/ompimpa
@@ -1502,18 +1508,49 @@ export async function handleCode(flags: string[], repoRoot?: string): Promise<vo
   console.log(`👉 Next step: Setelah seluruh asersi hijau, jalankan '/review ${storyId}' (10 isolated reviewers).`);
 }
 
+export function printTriageHelp(): void {
+  console.log(`
+Usage: ompimpa triage <story-id> [options]
+
+Run deterministic deduplication, Tier 2.5 Mini Balairung adjudication, and 100/100 scoring scorecard.
+
+Options:
+  --strict                         Exit with code 1 if verdict is not PASS
+  --json                           Output result as JSON
+  --story, -s <id>                 Specify story ID
+  --adjudicate                     Force enable Tier 2.5 Mini Balairung adjudication
+  --no-adjudicate                  Disable Tier 2.5 adjudication (use 0-token deterministic fallback)
+  --adjudication-timeout-ms <n>    Adjudication timeout in milliseconds (default: 30000)
+  --help, -h                       Show this help message
+`);
+}
+
 export async function handleTriage(flags: string[], repoRoot?: string): Promise<void> {
   const targetDir = repoRoot || process.cwd();
   let storyId: string | null = null;
   let strict = false;
   let jsonOutput = false;
+  let adjudicateOverride: boolean | null = null;
+  let timeoutMsOverride: number | null = null;
 
   for (let i = 0; i < flags.length; i++) {
     const f = flags[i];
-    if (f === "--strict") {
+    if (f === "--help" || f === "-h") {
+      printTriageHelp();
+      return;
+    } else if (f === "--strict") {
       strict = true;
     } else if (f === "--json") {
       jsonOutput = true;
+    } else if (f === "--adjudicate") {
+      adjudicateOverride = true;
+    } else if (f === "--no-adjudicate") {
+      adjudicateOverride = false;
+    } else if (f === "--adjudication-timeout-ms" && flags[i + 1]) {
+      timeoutMsOverride = parseInt(flags[i + 1], 10);
+      i++;
+    } else if (f.startsWith("--adjudication-timeout-ms=")) {
+      timeoutMsOverride = parseInt(f.split("=")[1], 10);
     } else if ((f === "--story" || f === "-s") && flags[i + 1]) {
       storyId = flags[i + 1];
       i++;
@@ -1533,6 +1570,60 @@ export async function handleTriage(flags: string[], repoRoot?: string): Promise<
     const reviewDir = path.join(targetDir, "_ompimpa", "review");
     const sessionMarker = await loadReviewSessionMarker(reviewDir, storyId);
     const result = await aggregateReviews(storyId, { targetDir, sessionMarker });
+
+    const ompConfig = loadOmpimpaConfig(targetDir);
+    const enableMiniBalairung =
+      adjudicateOverride !== null
+        ? adjudicateOverride
+        : (ompConfig.quality?.triage?.enable_mini_balairung ?? true);
+    const adjudicationTimeoutMs =
+      timeoutMsOverride !== null
+        ? timeoutMsOverride
+        : (ompConfig.quality?.triage?.adjudication_timeout_ms ?? 30000);
+    const adjudicationModel =
+      ompConfig.quality?.triage?.adjudication_model || ompConfig.models?.triage || "smol";
+
+    if (enableMiniBalairung) {
+      const contested = detectContestedFindings(result.deduped);
+      if (contested.length > 0) {
+        if (!jsonOutput) {
+          console.log(
+            `⚖️ Mini Balairung (Tier 2.5): Mendeteksi ${contested.length} sengketa temuan review. Menjalankan adjudikasi model '${adjudicationModel}' (timeout ${adjudicationTimeoutMs}ms)...`
+          );
+        }
+        const adjResult = await runAdjudicationTask(contested, storyId, {
+          model: adjudicationModel,
+          timeoutMs: adjudicationTimeoutMs,
+          targetDir,
+        });
+
+        if (!adjResult.success || !adjResult.verdicts || adjResult.verdicts.length === 0) {
+          const reason = adjResult.reason || "no verdicts";
+          if (!jsonOutput) {
+            console.log(`adjudication: fallback pessimistic (${reason})`);
+          }
+        } else {
+          const adjudicatedFindings = applyAdjudicationResults(result.deduped, adjResult.verdicts);
+          const updatedRejected = [
+            ...result.rejected,
+            ...adjudicatedFindings.filter((f) => (f.verdict || "").toLowerCase() === "false"),
+          ];
+          const updatedDeduped = adjudicatedFindings.filter(
+            (f) => (f.verdict || "").toLowerCase() !== "false"
+          );
+          result.deduped = updatedDeduped;
+          result.rejected = updatedRejected;
+          result.score = calculateScore(updatedDeduped);
+          result.remediation = remediationPlan(updatedDeduped);
+
+          if (!jsonOutput) {
+            console.log(
+              `⚖️ Tier 2.5 Adjudikasi selesai: ${adjResult.verdicts.length} sengketa diselesaikan. Skor akhir: ${result.score.score}/100.`
+            );
+          }
+        }
+      }
+    }
 
     if (jsonOutput) {
       console.log(JSON.stringify(result, null, 2));
