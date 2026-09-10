@@ -23,9 +23,8 @@ Dokumen referensi (*Information-Oriented*) ini memuat daftar lengkap perintah sl
 | **`/ompimpa:graphify`** | Analisis visual dependensi modul & blast-radius via `mix xref` + LSP | `ompimpa-ecto` | `/ompimpa:graphify` |
 | **`/ompimpa:verify`** | Tiered verification (T1 <2s, T2 <10s, T3 bg) & strict compiler suite | `ompimpa-verify` | `/ompimpa:verify` |
 | **`/ompimpa:doc`** | Menyusun panduan Diátaxis User/Admin/Dev | `ompimpa-doc` | `/ompimpa:doc <user\|admin\|dev>` |
-| **`/ompimpa:inspect`** | Master diagnostic out-of-band terpadu (Batas, Performa, Keamanan, Docs) & auto-triage EPIC-DEBT | `ompimpa-test` & `ompimpa-prd` | `/ompimpa:inspect [--boundaries\|--perf\|--security\|--docs\|--dry-run]` |
+| **`/ompimpa:inspect`** | Master diagnostic out-of-band terpadu (Batas, Performa, Keamanan, Docs) & auto-triage EPIC-DEBT (unifikasi audit, boundaries, perf, techdebt) | `ompimpa-test` & `ompimpa-prd` | `/ompimpa:inspect [--boundaries\|--perf\|--security\|--docs\|--dry-run]` |
 | **`/ompimpa:prewalk`** | Scan AST/regex 26 Iron Laws + TTSR stream rules + validasi DAG | CLI Engine + `ompimpa-ironlaw` | `/ompimpa:prewalk [paths]` / `ompimpa prewalk` |
-| **`/ompimpa:techdebt`** | *(Legacy — terunifikasi ke `/inspect`)* Pemindaian Credo & hutang teknis | `ompimpa-techdebt` | `/ompimpa:techdebt` |
 | **`/ompimpa:compound`** | Menyimpan pola solusi ke memori proyek | `ompimpa-compound` | `/ompimpa:compound [topik]` |
 | **`/ompimpa:doctor`** | Diagnosa toolchain & konfigurasi repo | CLI Engine | `/ompimpa:doctor` |
 
@@ -36,13 +35,15 @@ Dokumen referensi (*Information-Oriented*) ini memuat daftar lengkap perintah sl
 | **`bin/ompimpa init [--force] [--ash\|--no-ash] [--oban\|--no-oban]`** | Scaffold Greenfield (`scope=full`) / Brownfield (`scope=delta`), auto-detect `:ash`/`:oban` dari `mix.exs` | Story C-04 |
 | **`bin/ompimpa doctor`** | Diagnosa mix.exs, ompimpa.toml, feature-status, AGENTS.md, hooks, agents sync, Diátaxis, rules, manifests, toolchain | Setup & Tooling |
 | **`bin/ompimpa verify [--tier1\|--tier2\|--tier3\|--all]`** | Default T1+T2 blocking (<12s), T3 background (`test`, `credo --strict`, `sobelow --strict --format json`) | Story B-04 |
-| **`bin/ompimpa dev [--epic <ID>] [--story <ID>] [--auto]`** | Validasi DAG + 5 fase per story (story→atdd→code→review→triage) | Story A-02, D-04 |
+| **`bin/ompimpa dev [--epic <ID>] [--story <ID>] [--auto] [--no-harness]`** | Validasi DAG + 5 fase per story (story→atdd→code→review→triage). Flag `--no-harness` menonaktifkan sesi headless omp. | Story A-02, D-04 |
 | **`bin/ompimpa story <ID> [--dry-run] [--force]`** | Generate `_ompimpa/specs/SPEC-[ID].md` → `ready-for-atdd` | Story D-01 |
 | **`bin/ompimpa atdd <ID>`** | Gate SPEC + cek berkas tes ada → `ready-for-dev` | Story E-01 |
 | **`bin/ompimpa code <ID> [--circuit-breaker=N]`** | Gate SPEC (INV-09), info scoped-test, next `/review` | D-02 |
-| **`bin/ompimpa review <ID> [--story=ID]`** | Panel multi-spesialis + scorecard TEA | Story B-01/B-03 |
-| **`bin/ompimpa triage <ID> [--strict] [--json]`** | Dedup `file:line:ruleId`, scoring 100/100 | Story D-02/B-02 |
-| **`bin/ompimpa inventory --balairung <file> [--prd <file>] [--stories <file>]`** | Gerbang tabel Inventaris + cakupan PRD anti scope-truncation | Balairung→PRD |
+| **`bin/ompimpa review <ID> [--story=ID]`** | Panel multi-spesialis 10 subagent terisolasi + scorecard TEA | Story B-01/B-03 |
+| **`bin/ompimpa triage <ID> [--strict] [--json] [--adjudicate] [--no-adjudicate]`** | Dedup `file:line:ruleId`, scoring 100/100, & adjudikasi sengketa Tier 2.5 | Story D-02/B-02 |
+| **`bin/ompimpa status [<ID>]`** | Inspeksi kanonis story lifecycle (backlog → done), verifikasi SPEC, berkas uji, bukti review, triage verdict, dan git history | Story E-01 / Status Canon |
+| **`bin/ompimpa tui [--show-thinking] [--fps <n>]`** | Dashboard terminal interaktif (EPIC-F) pemantau kanban stories, spec JIT, dan live stream kegiatan subagent | EPIC-F (F-01..F-05) |
+| **`bin/ompimpa inventory --balairung <file> [--prd <file>] [--stories <file>]`** | Gerbang tabel Inventaris + cakupan PRD anti scope-truncation (INV-10) | Balairung→PRD |
 | **`bin/ompimpa prewalk [paths]`** | Scan Elixir vs 26 Iron Laws + cek DAG sirkular | Story A-01 |
 | **`bin/ompimpa inspect [--boundaries\|--perf\|--security\|--docs\|--dry-run]`** | Master diagnostic out-of-band 4-pilar & auto-triage backlog ke `EPIC-DEBT` | Story C-06, E-03 |
 | **`bin/ompimpa graphify [--blast <file>]`** | Ekstraksi graf `_ompimpa/graph.json` + `graph.html` | Story C-01 |

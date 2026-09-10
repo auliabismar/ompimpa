@@ -37,6 +37,13 @@ Dokumen Master PRD akan disimpan di `_ompimpa/prd/PRD-[ID]-[nama].md` dengan str
 - **Bab 5:** Epics & Slices Spine dengan Kriteria Penerimaan Gherkin (`Given / When / Then`).
 - **Bab 6:** Invariant Arsitektur & Keamanan.
 
+### Validasi Gerbang Cakupan Inventaris (Invarian INV-10):
+Pastikan seluruh modul dari sidang Balairung tercakup utuh di dalam PRD:
+```bash
+bin/ompimpa inventory --balairung _ompimpa/balairung/BALAIRUNG-*.md --prd _ompimpa/prd/PRD-*.md
+```
+*Jika terdapat modul yang belum siap dikerjakan pada inisiatif ini, catat modul tersebut di dalam Scope Deferral Record (`_ompimpa/deferred.md`) agar tidak memicu kegagalan gerbang.*
+
 ---
 
 ## 3. Mencatat Keputusan Arsitektur (`/ompimpa:adr`)
@@ -48,3 +55,11 @@ Jika fitur ini membutuhkan pemilihan pustaka atau paradigma khusus (misal: *AshA
 ```
 
 H. Agus Salim akan menyusun naskah `_ompimpa/adr/ADR-[NUM]-[judul].md` berstandar MADR 3.0+ yang membandingkan alternatif dan mengunci invariant teknis.
+
+---
+
+## 4. Dekomposisi ke Master Stories DAG (`_ompimpa/stories.yaml`)
+
+Setelah PRD dan ADR terkunci, uraikan slice fitur menjadi simpul Directed Acyclic Graph (DAG) di `_ompimpa/stories.yaml`:
+* Setiap story memiliki `id` unik (misal `A-01`), rujukan `epic`, daftar dependensi `depends_on`, `ac` (Gherkin ACs), `target_files`, dan `kill_criteria`.
+* Integritas topologis divalidasi otomatis oleh `bin/ompimpa prewalk` agar bebas siklus (*no circular dependency*).

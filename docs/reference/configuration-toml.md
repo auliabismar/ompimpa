@@ -49,10 +49,15 @@ parallel_reviewers = 6         # Panel 6 subagent paralel: IronLaw, Security, QA
 max_triage_fix_cycles = 3      # [v2 ADR-001] Batas siklus perbaikan otomatis sebelum eskalasi (was 2, sinkron agyimpa 3)
 scoring_weights = { Critical = 30, High = 15, Medium = 5, Low = 2 } # [v2] port agyimpa criteria_registry_35.json
 allow_p2_nits = false          # [v2] P2 Low tetap BLOCK (was allow), sinkron agyimpa allow_p2_nits=false
+
+[quality.triage]
+enable_mini_balairung = true    # Adjudikasi sengketa temuan Tier 2.5 single-shot model smol
+adjudication_timeout_ms = 30000 # Batas waktu eksekusi adjudikasi single-shot (ms)
+adjudication_model = "smol"     # Model arbiter mini-balairung
+
 # Target Non-Functional Requirements (NFR)
 [quality.nfr]
 target_p95_latency_ms = 50     # Target latensi respons p95 (ms) pada naskah PRD
-
 # Langkah-Langkah Verifikasi Otomatis — [v2 ADR-001] Tiered T1<2s/T2<10s/T3 background (B-04)
 [quality.verify]
 steps = [
@@ -100,7 +105,7 @@ ironlaw = "smol"               # Hj. Rasuna Said (Fast & deterministic Iron Law 
 security = "slow"              # Bagindo Azizchan (Deep perimeter security & vulnerability audit)
 debug = "slow"                 # Adinegoro (4-track deep root cause investigation)
 doc = "default"                # Mohammad Yamin (Diátaxis User, Admin, Dev Guides)
-
+triage = "smol"                 # Hakim Adjudikasi Mini Balairung Tier 2.5 (Adjudikasi Sengketa Triage)
 # ==========================================
 # Pilihan Stack Modular
 # ==========================================

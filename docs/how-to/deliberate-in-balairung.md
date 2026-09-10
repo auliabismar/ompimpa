@@ -78,15 +78,34 @@ Berkas ini memuat:
 - **Ringkasan Topik & Batasan Masalah**.
 - **Posisi Awal & Intervensi Ketua Sidang**.
 - **Dialektika & Debat Silang Utama**.
+- **Tabel Inventaris Modul & Rute/Berkas (Wajib — Invarian INV-10)**:
+  Risalah wajib memuat seksi heading `## Inventaris` berisi tabel Markdown dengan kolom modul, rute/berkas, dan komponen:
+  ```markdown
+  ## Inventaris
+  | Modul | Rute Index | Rute New | Rute Edit | Komponen |
+  | :--- | :--- | :--- | :--- | :--- |
+  | Accounts | `/users` | `/users/new` | `/users/:id/edit` | UserLive |
+  ```
+  *Tanpa tabel ini, sidang belum boleh diketuk palu dan gerbang `ompimpa inventory` akan menolak PRD.*
 - **Verdict Akhir**:
   - Rekomendasi Mufakat.
   - Suara Minoritas (*Dissenting Opinions*).
   - Batas Pembatalan Keputusan (*Kill Criteria*).
   - Rekomendasi Tindak Lanjut (misal: menyusun `/ompimpa:adr` atau `/ompimpa:prd`).
 
-## 4. Memanfaatkan Hasil Balairung di Workflow Lain
+## 4. Memvalidasi Gerbang Inventaris (`bin/ompimpa inventory`)
+
+Sebelum melangkah dari Balairung ke PRD, jalankan verifikasi gerbang mekanis INV-10:
+```bash
+bin/ompimpa inventory --balairung _ompimpa/balairung/BALAIRUNG-20260902-panen-agyimpa.md --prd _ompimpa/prd/PRD-001-panen-agyimpa.md
+```
+Gerbang ini memverifikasi bahwa:
+1. Risalah Balairung memuat tabel inventaris lengkap.
+2. Dokumen Master PRD mencakup 100% modul yang telah dimufakatkan di Balairung tanpa pemotongan ruang lingkup sepihak (*anti scope-truncation*). Modul yang ditunda wajib disertai *Scope Deferral Record*.
+
+## 5. Memanfaatkan Hasil Balairung di Workflow Lain
 
 Berkas risalah Balairung adalah **dokumen rujukan bebas (*Independent Reference Artifact*)**:
-* Saat menyusun PRD: `/ompimpa:prd "Sistem Multi-Tenant"` dapat merujuk ke risalah Balairung terkait.
+* Saat menyusun PRD: `/ompimpa:prd "Sistem Multi-Tenant"` wajib merujuk ke risalah Balairung terkait dan mengadopsi tabel inventarisnya.
 * Saat menyusun ADR: `/ompimpa:adr "Keputusan Ash vs Ecto"` dapat langsung mengutip argumen dan *kill criteria* dari Balairung.
 * Saat koding di `/ompimpa:dev`: Spesialis backend mematuhi invariant yang telah dimufakatkan di Balairung.

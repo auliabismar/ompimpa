@@ -195,7 +195,7 @@ ompimpa init
 ompimpa doctor
 ```
 
-### 3. Slash Commands di Sesi OMP (21 file di `commands/`)
+### 3. Slash Commands di Sesi OMP (19 file di `commands/`)
 * `/ompimpa:balairung [topik]` — Sidang musyawarah 3-ronde (Blind, Debat, Verdict) bersama dewan tokoh.
 * `/ompimpa:ideate [ide]` — Memulai musyawarah ideasi & resolusi TRIZ.
 * `/ompimpa:prd [judul]` — Menyusun Master PRD & Epics Spine.
@@ -211,22 +211,21 @@ ompimpa doctor
 * `/ompimpa:graphify [--blast <file>]` — Graf dependensi `_ompimpa/graph.json` + `graph.html`.
 * `/ompimpa:verify` — Tiered verify T1+T2 blocking (`--tier1/--tier2/--tier3/--all`), strict compiler suite.
 * `/ompimpa:doc` — CLI `ompimpa doc` generate 4 kuadran Diátaxis di `docs/` (slash `/doc user --epic 8` via ompimpa-doc).
-* `/ompimpa:inspect [--boundaries|--perf|--security|--docs|--dry-run]` — Master diagnostic 4-pilar & auto-triage EPIC-DEBT.
+* `/ompimpa:inspect [--boundaries|--perf|--security|--docs|--dry-run]` — Master diagnostic 4-pilar out-of-band & auto-triage EPIC-DEBT (unifikasi audit, boundaries, perf, techdebt).
 * `/ompimpa:prewalk [paths]` — Scan AST/regex 26 Iron Laws + TTSR stream rules.
 * `/ompimpa:doctor` — Diagnosa toolchain & konfigurasi repo.
-* `/ompimpa:audit` — Audit kesehatan arsitektur, N+1, assigns, Hex security.
-* `/ompimpa:techdebt` — Memindai Credo strict dan hutang teknis.
 * `/ompimpa:compound [topik]` — Menyimpan pola solusi teruji di `_ompimpa/solutions/`.
 
-### 4. CLI Terminal OS (`bin/ompimpa`, 17 perintah di `src/cli.ts`)
+### 4. CLI Terminal OS (`bin/ompimpa`, 19 perintah di `src/cli.ts`)
 * `init [--force] [--ash|--no-ash] [--oban|--no-oban]` — Scaffold Greenfield/Brownfield + `ompimpa.toml`.
 * `doctor` — Cek mix.exs, ompimpa.toml, feature-status, AGENTS.md, hooks, agents sync, Diátaxis, rules, manifests, toolchain.
 * `verify [--tier1|--tier2|--tier3|--all]` — Default T1+T2 blocking, T3 background.
-* `dev [--epic <ID>] [--story <ID>] [--auto]` — DAG validate + 5 fase per story.
+* `dev [--epic <ID>] [--story <ID>] [--auto] [--no-harness]` — DAG validate + 5 fase per story.
 * `story <ID> [--dry-run] [--force]` → `ready-for-atdd`; `atdd <ID>` → `ready-for-dev`; `code <ID>`; `review <ID>`; `triage <ID> [--strict] [--json]`.
-* `inventory --balairung <file> [--prd <file>] [--stories <file>]` — Gerbang inventaris anti scope-truncation.
+* `status [<story-id>]` — Inspeksi kanonis story lifecycle (backlog → done), verifikasi SPEC, berkas uji, bukti review, triage verdict, dan git history.
+* `tui [--show-thinking] [--fps <n>]` — Dashboard terminal interaktif (EPIC-F) pemantau kanban stories, spec JIT, dan live stream kegiatan subagent.
+* `inventory --balairung <file> [--prd <file>] [--stories <file>]` — Gerbang inventaris anti scope-truncation (INV-10).
 * `graphify [--blast <file>]`, `sweep [--dry-run]`, `doc`, `inspect`, `prewalk`, `sync`, `link`, `version/help`.
-
 ---
 
 ## 6. License

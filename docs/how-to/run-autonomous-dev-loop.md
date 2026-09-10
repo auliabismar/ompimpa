@@ -49,8 +49,7 @@ Untuk menyelesaikan seluruh slice dalam satu inisiatif tanpa intervensi manual:
 
 ### Mekanisme Otonom OMP Hook (`session_stop`):
 * Saat satu story selesai dan sesi hendak berhenti, hook OMP `session_stop` otomatis membaca `_ompimpa/status/feature-status.yaml`.
-* Jika masih ditemukan story dengan status `ready-for-dev` atau `in-progress`, hook menginstruksikan agent untuk melanjutkan (`continue: true`) ke story berikutnya secara rekursif hingga seluruh roadmap tuntas.
-
+* Jika masih ditemukan story dalam salah satu dari **5 status actionable kanonis** (`backlog`, `ready-for-atdd`, `ready-for-dev`, `in-progress`, `in-review`), hook menginstruksikan agent untuk melanjutkan (`continue: true`) ke story berikutnya secara rekursif hingga seluruh roadmap tuntas.
 
 ---
 
@@ -60,8 +59,9 @@ Untuk menjalankan eksekusi beruntun multi-story tanpa risiko kelelahan konteks (
 
 ```bash
 bin/ompimpa dev --epic EPIC-A --auto
+# Atau jalankan tanpa sesi headless harness terpisah (hanya gerbang lokal):
+bin/ompimpa dev --epic EPIC-A --auto --no-harness
 ```
-
 ### Bagaimana Outer Loop Bekerja?
 1. Outer loop runner (`src/loop_runner.ts`) dieksekusi di level terminal OS shell (Node.js/Bun).
 2. Runner membaca urutan topologis DAG `_ompimpa/stories.yaml` untuk epic yang ditentukan.
@@ -78,6 +78,9 @@ bin/ompimpa dev --epic EPIC-A --auto
 Jika Anda ingin melakukan inspeksi atau intervensi manual pada fase tertentu tanpa menjalankan loop penuh:
 
 ```bash
+# 0. Periksa status dan kelengkapan story saat ini
+bin/ompimpa status A-01
+
 # 1. Buat spesifikasi mikro JIT
 /ompimpa:story A-01
 
@@ -92,8 +95,10 @@ Jika Anda ingin melakukan inspeksi atau intervensi manual pada fase tertentu tan
 
 # 5. Triage temuan & cek kelulusan 100/100
 /ompimpa:triage A-01
+
+# 6. Konfirmasi status kanonis story telah done
+bin/ompimpa status A-01
 ```
----
 
 ## 5. Penanganan Kebuntuan (*Circuit Breaker*)
 
