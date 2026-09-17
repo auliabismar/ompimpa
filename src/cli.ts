@@ -1751,7 +1751,19 @@ export async function handleStatus(flags: string[], repoRoot?: string): Promise<
   }
   const st = statusMap.get(storyId) || "backlog";
   console.log(`\n📋 Story ${storyId}: ${storyTitle}`);
-  console.log(`   Epic: ${story.epic} | Status: ${st}`);
+  const storyItem = storiesStatus.find((s) => s.id === storyId);
+  const runStr = storyItem?.run !== undefined ? ` | Run: ${storyItem.run}` : "";
+  console.log(`   Epic: ${story.epic} | Status: ${st}${runStr}`);
+  if (storyItem?.checkpoint) {
+    const cp = storyItem.checkpoint;
+    const cpParts: string[] = [];
+    if (cp.phase) cpParts.push(`phase: ${cp.phase}`);
+    if (cp.commit) cpParts.push(`commit: ${cp.commit}`);
+    if (cp.triage_verdict) cpParts.push(`triage: ${cp.triage_verdict.verdict} (${cp.triage_verdict.score}/100)`);
+    if (cpParts.length > 0) {
+      console.log(`   Checkpoint: ${cpParts.join(", ")}`);
+    }
+  }
   const specRel = `_ompimpa/specs/SPEC-${storyId}.md`;
   const specExists = await fileExists(path.join(targetDir, specRel));
   console.log(`   SPEC: ${specRel} ${specExists ? "✅" : "❌ hilang"}`);

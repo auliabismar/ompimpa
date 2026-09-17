@@ -1,3 +1,5 @@
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
 import { spawn, type ChildProcess } from "node:child_process";
 import type { TriageFinding } from "./triage";
 
@@ -451,6 +453,9 @@ export async function runAdjudicationTask(
   if (process.env.OMPIMPA_MOCK_ADJUDICATION) {
     const mockParsed = parseAdjudicationVerdicts(process.env.OMPIMPA_MOCK_ADJUDICATION);
     if (mockParsed) {
+      try {
+        await writeAdjudicationLedger(targetDir, storyId, mockParsed, groups, "mock");
+      } catch {}
       return { success: true, verdicts: mockParsed };
     }
     return {
@@ -585,6 +590,76 @@ export async function runAdjudicationTask(
       reason: "invalid or empty JSON output from adjudicator",
     };
   }
+  try {
+    await writeAdjudicationLedger(targetDir, storyId, parsedVerdicts, groups, model);
+  } catch {}
 
   return { success: true, verdicts: parsedVerdicts };
+}
+
+/**
+ * Mencatat seluruh putusan adjudikasi model ke Adjudication Ledger (ADR-007 INV-12).
+ * Disimpan di _ompimpa/triage/<storyId>-adjudication.json dan di-append ke seksi 11 SPEC.
+ */
+export async function writeAdjudicationLedger(
+  targetDir: string,
+  storyId: string,
+  verdicts: AdjudicationVerdict[],
+  groups: ContestedGroup[],
+  model: string = "smol"
+): Promise<string> {
+  const ledgerDir = path.join(targetDir, "_ompimpa", "triage");
+  await fs.mkdir(ledgerDir, { recursive: true });
+  const ledgerFile = path.join(ledgerDir, `${storyId}-adjudication.json`);
+
+  const records = verdicts.map((v) => {
+    const grp = groups.find((g) => g.key === v.finding_key);
+    return {
+      finding_key: v.finding_key,
+      file: grp?.file || "unknown",
+      line: grp?.line ?? null,
+      contested_reason: grp?.reason || "unknown",
+      reported_by: grp ? grp.findings.map((f) => f.sources?.join(",") || f.ruleId).filter(Boolean) : [],
+      final_verdict: v.final_verdict,
+      final_severity: v.final_severity,
+      consensus_remediation: v.consensus_remediation,
+      is_dismissed: v.final_verdict === "false",
+    };
+  });
+
+  const payload = {
+    story: storyId,
+    adjudicated_at: new Date().toISOString(),
+    model,
+    total_contested: groups.length,
+    total_adjudicated: verdicts.length,
+    records,
+  };
+
+  await fs.writeFile(ledgerFile, JSON.stringify(payload, null, 2), "utf-8");
+
+  // Append to SPEC section 11 if SPEC file exists
+  try {
+    const specPath = path.join(targetDir, "_ompimpa", "specs", `SPEC-${storyId}.md`);
+    const specContent = await fs.readFile(specPath, "utf-8");
+    const sec11Idx = specContent.indexOf("## 11. Review Triage Log");
+    if (sec11Idx >= 0) {
+      const nextSecMatch = specContent.slice(sec11Idx + 24).match(/\n## \d+\./);
+      const insertPos =
+        nextSecMatch && nextSecMatch.index !== undefined
+          ? sec11Idx + 24 + nextSecMatch.index
+          : specContent.length;
+      const logEntries = records
+        .map(
+          (r) =>
+            `- [${new Date().toISOString()}] ADJUDICATION (${model}): ${r.finding_key} -> ${r.final_verdict} (${r.final_severity}): ${r.consensus_remediation}`
+        )
+        .join("\n");
+      const updated =
+        specContent.slice(0, insertPos).trimEnd() + "\n" + logEntries + "\n\n" + specContent.slice(insertPos);
+      await fs.writeFile(specPath, updated, "utf-8");
+    }
+  } catch {}
+
+  return ledgerFile;
 }

@@ -486,26 +486,62 @@ export function getBlockedStory(
   return null;
 }
 
+export interface FeatureStatusStoryItem {
+  id: string;
+  status: string;
+  retries: number;
+  run?: number;
+  checkpoint?: {
+    phase?: string;
+    spec?: string;
+    commit?: string;
+    triage_verdict?: { score?: number; verdict?: string; summary?: string };
+  };
+}
+
 export function parseFeatureStatusYaml(content: string): {
   doneIds: Set<string>;
   statusMap: Map<string, string>;
-  stories: { id: string; status: string; retries: number }[];
+  stories: FeatureStatusStoryItem[];
 } {
   const statusMap = new Map<string, string>();
   const doneIds = new Set<string>();
-  const stories: { id: string; status: string; retries: number }[] = [];
+  const stories: FeatureStatusStoryItem[] = [];
   const lines = content.split("\n");
   let curId: string | null = null;
   let curStatus: string | null = null;
   let curRetries = 0;
+  let curRun: number | undefined;
+  let curPhase: string | undefined;
+  let curSpec: string | undefined;
+  let curCommit: string | undefined;
+  let curScore: number | undefined;
+  let curVerdict: string | undefined;
+  let curSummary: string | undefined;
+
   const push = () => {
     if (curId && curStatus) {
       const canonical = curStatus.trim().toLowerCase().replace(/_/g, "-");
       statusMap.set(curId, canonical);
       if (canonical === "done") doneIds.add(curId);
-      stories.push({ id: curId, status: canonical, retries: curRetries });
+      const item: FeatureStatusStoryItem = {
+        id: curId,
+        status: canonical,
+        retries: curRetries,
+        run: curRun,
+      };
+      if (curPhase || curSpec || curCommit || curVerdict) {
+        item.checkpoint = {
+          phase: curPhase,
+          spec: curSpec,
+          commit: curCommit,
+          triage_verdict: curVerdict ? { score: curScore, verdict: curVerdict, summary: curSummary } : undefined,
+        };
+      }
+      stories.push(item);
     }
   };
+
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
@@ -515,12 +551,33 @@ export function parseFeatureStatusYaml(content: string): {
       curId = idMatch[1];
       curStatus = null;
       curRetries = 0;
+      curRun = undefined;
+      curPhase = undefined;
+      curSpec = undefined;
+      curCommit = undefined;
+      curScore = undefined;
+      curVerdict = undefined;
+      curSummary = undefined;
       continue;
     }
     const statusMatch = line.match(/^\s*status:\s*["']?([a-zA-Z_-]+)["']?/);
     if (statusMatch && curId) curStatus = statusMatch[1];
     const retriesMatch = line.match(/^\s*retries:\s*(\d+)/);
     if (retriesMatch && curId) curRetries = parseInt(retriesMatch[1], 10);
+    const runMatch = line.match(/^\s*run:\s*(\d+)/);
+    if (runMatch && curId) curRun = parseInt(runMatch[1], 10);
+    const phaseMatch = line.match(/^\s*phase:\s*["']?([a-zA-Z_-]+)["']?/);
+    if (phaseMatch && curId) curPhase = phaseMatch[1];
+    const specMatch = line.match(/^\s*spec:\s*["']?([^"']+)["']?/);
+    if (specMatch && curId) curSpec = specMatch[1];
+    const commitMatch = line.match(/^\s*commit:\s*["']?([^"']+)["']?/);
+    if (commitMatch && curId) curCommit = commitMatch[1];
+    const scoreMatch = line.match(/^\s*score:\s*(\d+)/);
+    if (scoreMatch && curId) curScore = parseInt(scoreMatch[1], 10);
+    const verdictMatch = line.match(/^\s*verdict:\s*["']?([a-zA-Z_-]+)["']?/);
+    if (verdictMatch && curId) curVerdict = verdictMatch[1];
+    const summaryMatch = line.match(/^\s*summary:\s*["']?([^"']+)["']?/);
+    if (summaryMatch && curId) curSummary = summaryMatch[1];
   }
   push();
   return { doneIds, statusMap, stories };

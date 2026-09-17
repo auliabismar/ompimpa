@@ -8,7 +8,7 @@ import {
   getBlockedStory,
   type Story,
 } from "./prewalk";
-import { canWriteStatus } from "./status";
+import { canWriteStatus, type CheckpointData } from "./status";
 import { loadStoryDetail, partitionTargetFiles, type StoryDetail } from "./story_spec";
 import {
   runHarnessSession,
@@ -131,6 +131,7 @@ export interface StoryRunnerOptions {
   harness?: HarnessPhaseConfig;
   onPhaseStart?: (phase: string, storyId: string) => void;
   onPhaseComplete?: (phase: string, storyId: string, exitCode: number) => void;
+  resume?: boolean;
 }
 
 export interface EpicLoopOptions {
@@ -286,17 +287,47 @@ export async function defaultSubprocessExecutor(
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
+function formatCheckpointYaml(cp: CheckpointData): string[] {
+  const res: string[] = ["    checkpoint:"];
+  if (cp.phase) res.push(`      phase: ${cp.phase}`);
+  if (cp.spec) res.push(`      spec: "${cp.spec}"`);
+  if (cp.test_files && cp.test_files.length > 0) {
+    res.push("      test_files:");
+    for (const f of cp.test_files) res.push(`        - "${f}"`);
+  }
+  if (cp.files_touched && cp.files_touched.length > 0) {
+    res.push("      files_touched:");
+    for (const f of cp.files_touched) res.push(`        - "${f}"`);
+  }
+  if (cp.review_artifacts && cp.review_artifacts.length > 0) {
+    res.push("      review_artifacts:");
+    for (const f of cp.review_artifacts) res.push(`        - "${f}"`);
+  }
+  if (cp.triage_verdict) {
+    res.push("      triage_verdict:");
+    if (typeof cp.triage_verdict.score === "number") res.push(`        score: ${cp.triage_verdict.score}`);
+    if (cp.triage_verdict.verdict) res.push(`        verdict: ${cp.triage_verdict.verdict}`);
+    if (typeof cp.triage_verdict.blockers === "number") res.push(`        blockers: ${cp.triage_verdict.blockers}`);
+    if (typeof cp.triage_verdict.warnings === "number") res.push(`        warnings: ${cp.triage_verdict.warnings}`);
+    if (cp.triage_verdict.summary) res.push(`        summary: "${cp.triage_verdict.summary.replace(/"/g, '\\"')}"`);
+  }
+  if (cp.commit) res.push(`      commit: "${cp.commit}"`);
+  return res;
+}
 
 /**
  * Updates story status and retries in _ompimpa/status/feature-status.yaml deterministically
  * using scoped block replacements and atomic file write-and-rename.
+ * Supports ADR-007 paired state machine checkpoints and INV-11 done-git atomicity.
  */
 export async function updateFeatureStatus(
   targetDir: string,
   storyId: string,
   newStatus: string,
   newRetries: number = 0,
-  force = false
+  force = false,
+  checkpoint?: CheckpointData,
+  run?: number
 ): Promise<void> {
   const canonicalStatus = newStatus.trim().toLowerCase().replace(/_/g, "-");
   const canonicalDir = path.resolve(targetDir);
@@ -313,11 +344,30 @@ export async function updateFeatureStatus(
   if (!sanitizedId) {
     throw new Error(`Invalid story identifier: ${storyId}`);
   }
+
+  // INV-11 (Done-Git Atomicity): Status done requires clean git working tree for story files
+  if (canonicalStatus === "done" && !force) {
+    try {
+      const { story } = await loadStoryDetail(storyId, canonicalDir);
+      const { targetFiles, testFiles } = partitionTargetFiles(story, canonicalDir);
+      const filesToCheck = [...targetFiles, ...testFiles].filter(Boolean);
+      if (filesToCheck.length > 0) {
+        const proc = spawn("git", ["status", "--porcelain", "--", ...filesToCheck], { cwd: canonicalDir });
+        let out = "";
+        proc.stdout?.on("data", (d) => (out += d.toString()));
+        await new Promise((r) => proc.on("close", r));
+        if (out.trim().length > 0) {
+          throw new Error(`INV-11 Violation: Cannot set status 'done' for ${storyId} while working tree is dirty: ${out.trim()}`);
+        }
+      }
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message.includes("INV-11 Violation")) {
+        throw err;
+      }
+    }
+  }
+
   const escapedId = escapeRegex(sanitizedId);
-  // Pencari blok berbasis pindaian baris (deterministik): blok story = dari
-  // baris "- id: <storyId>" hingga (eksklusif) baris "- id:" berikutnya,
-  // "# Kanban", atau EOF. (Regresi: lookahead `$` + flag `m` lama berhenti
-  // di akhir baris pertama sehingga baris status tak tercakup → duplikat.)
   const lines = content.split("\n");
   const idPattern = new RegExp(`^\\s*-\\s*id:\\s*["']?${escapedId}["']?\\s*$`);
   const boundaryPattern = /^\s*-\s*id:\s*["']?[A-Za-z0-9_-]+["']?\s*$|^# Kanban/;
@@ -338,7 +388,7 @@ export async function updateFeatureStatus(
   }
 
   if (blockStart !== -1) {
-    const blockLines = lines.slice(blockStart, blockEnd);
+    let blockLines = lines.slice(blockStart, blockEnd);
     const statusIdx = blockLines.findIndex((l) => /status:\s*[a-zA-Z_-]+/.test(l));
     if (statusIdx !== -1) {
       const curMatch = blockLines[statusIdx].match(/status:\s*([a-zA-Z_-]+)/);
@@ -359,14 +409,47 @@ export async function updateFeatureStatus(
       else blockLines.push(`    retries: ${newRetries}`);
     }
 
+    // Update or insert run
+    const actualRun = run !== undefined ? run : newRetries + 1;
+    const runIdx = blockLines.findIndex((l) => /run:\s*\d+/.test(l));
+    if (runIdx !== -1) {
+      blockLines[runIdx] = blockLines[runIdx].replace(/run:\s*\d+/, `run: ${actualRun}`);
+    } else {
+      const anchorIdx = blockLines.findIndex((l) => /retries:\s*\d+/.test(l));
+      if (anchorIdx !== -1) blockLines.splice(anchorIdx + 1, 0, `    run: ${actualRun}`);
+      else blockLines.push(`    run: ${actualRun}`);
+    }
+
+    // Update or insert checkpoint if provided
+    if (checkpoint) {
+      const cpYaml = formatCheckpointYaml(checkpoint);
+      const cpStart = blockLines.findIndex((l) => /^\s*checkpoint:/.test(l));
+      if (cpStart !== -1) {
+        let cpEnd = cpStart + 1;
+        while (cpEnd < blockLines.length && /^\s{6,}/.test(blockLines[cpEnd])) {
+          cpEnd++;
+        }
+        blockLines = [...blockLines.slice(0, cpStart), ...cpYaml, ...blockLines.slice(cpEnd)];
+      } else {
+        blockLines.push(...cpYaml);
+      }
+    }
+
     content = [...lines.slice(0, blockStart), ...blockLines, ...lines.slice(blockEnd)].join("\n");
   } else {
     // Append new entry cleanly before Kanban summary
-    const entry = `  - id: ${sanitizedId}
-    title: "${sanitizedId}"
-    status: ${canonicalStatus}
-    retries: ${newRetries}
-`;
+    const actualRun = run !== undefined ? run : newRetries + 1;
+    const entryLines = [
+      `  - id: ${sanitizedId}`,
+      `    title: "${sanitizedId}"`,
+      `    status: ${canonicalStatus}`,
+      `    retries: ${newRetries}`,
+      `    run: ${actualRun}`,
+    ];
+    if (checkpoint) {
+      entryLines.push(...formatCheckpointYaml(checkpoint));
+    }
+    const entry = entryLines.join("\n") + "\n";
     const kanbanIdx = content.lastIndexOf("# Kanban");
     if (kanbanIdx >= 0) {
       content = content.slice(0, kanbanIdx).trimEnd() + "\n" + entry + "\n" + content.slice(kanbanIdx);
@@ -565,17 +648,48 @@ export async function runStoryPhases(
   const timeoutMs = resolvePhaseTimeoutMs(targetDir, options.timeoutMs);
 
   const harnessEnabled = options.harness?.enabled === true;
+
+  // Load current status from feature-status.yaml to support resumability (ADR-007)
+  let currentStatus = "backlog";
+  if (options.resume !== false) {
+    try {
+      const statusPath = path.join(targetDir, "_ompimpa", "status", "feature-status.yaml");
+      const statusContent = await fs.readFile(statusPath, "utf-8");
+      const { statusMap } = parseFeatureStatusYaml(statusContent);
+      currentStatus = statusMap.get(storyId) || "backlog";
+    } catch {}
+  }
+
+  // Determine starting phase based on current checkpoint status
+  const skipUntilPhase: Record<string, string> = {
+    "ready-for-atdd": "atdd",
+    "in-atdd": "atdd",
+    "ready-for-dev": "code",
+    "in-dev": "code",
+    "in-progress": "code",
+    "ready-for-patch": "code",
+    "remediating": "code",
+    "ready-for-review": "review",
+    "in-review": "review",
+    "ready-for-triage": "triage",
+    "in-triage": "triage",
+  };
+
+  const startFrom = skipUntilPhase[currentStatus];
+  let pastStart = !startFrom;
+
   const phases: Array<{
     name: string;
+    inStatus: string;
     args: string[];
     doneStatus: string;
     harnessRole?: "dev" | "review";
   }> = [
-    { name: "story", args: ["run", cliPath, "story", storyId], doneStatus: "ready-for-atdd" },
-    { name: "atdd", args: ["run", cliPath, "atdd", storyId, "--auto"], doneStatus: "ready-for-dev" },
-    { name: "code", args: ["run", cliPath, "code", storyId], doneStatus: "in-progress", harnessRole: "dev" },
-    { name: "review", args: ["run", cliPath, "review", "--story", storyId, "--auto"], doneStatus: "in-review", harnessRole: "review" },
-    { name: "triage", args: ["run", cliPath, "triage", storyId, "--strict"], doneStatus: "done" },
+    { name: "story", inStatus: "in-story", args: ["run", cliPath, "story", storyId], doneStatus: "ready-for-atdd" },
+    { name: "atdd", inStatus: "in-atdd", args: ["run", cliPath, "atdd", storyId, "--auto"], doneStatus: "ready-for-dev" },
+    { name: "code", inStatus: "in-dev", args: ["run", cliPath, "code", storyId], doneStatus: "ready-for-review", harnessRole: "dev" },
+    { name: "review", inStatus: "in-review", args: ["run", cliPath, "review", "--story", storyId, "--auto"], doneStatus: "ready-for-triage", harnessRole: "review" },
+    { name: "triage", inStatus: "in-triage", args: ["run", cliPath, "triage", storyId, "--strict"], doneStatus: "done" },
   ];
 
   const phaseRecords: StoryPhaseResult["phases"] = [];
@@ -587,7 +701,29 @@ export async function runStoryPhases(
   };
 
   for (const phase of phases) {
+    if (!pastStart) {
+      if (phase.name === startFrom) {
+        pastStart = true;
+      } else {
+        phaseRecords.push({
+          phase: phase.name,
+          cmd: "resumed",
+          args: [],
+          exitCode: 0,
+          durationMs: 0,
+          stdout: `[CHECKPOINT-RESUMED] Phase ${phase.name} skipped; resuming from '${currentStatus}'`,
+          stderr: "",
+        });
+        continue;
+      }
+    }
+
     options.onPhaseStart?.(phase.name, storyId);
+    if (!options.dryRun && phase.inStatus) {
+      try {
+        await updateFeatureStatus(targetDir, storyId, phase.inStatus, 0, false, { phase: phase.name });
+      } catch {}
+    }
     const start = Date.now();
 
     if (options.dryRun) {
@@ -636,7 +772,14 @@ export async function runStoryPhases(
     options.onPhaseComplete?.(phase.name, storyId, res.code);
     if (res.code === 0 && !options.dryRun && phase.doneStatus) {
       try {
-        await updateFeatureStatus(targetDir, storyId, phase.doneStatus, 0);
+        const cp: CheckpointData = { phase: phase.name };
+        if (phase.name === "story" || phase.name === "atdd") {
+          cp.spec = `_ompimpa/specs/SPEC-${storyId}.md`;
+        }
+        if (phase.name === "triage") {
+          cp.triage_verdict = { score: 100, verdict: "PASS" };
+        }
+        await updateFeatureStatus(targetDir, storyId, phase.doneStatus, 0, false, cp);
       } catch {
         // Status advance best-effort: kegagalan tulis status tidak menggagalkan fase.
       }
@@ -647,6 +790,21 @@ export async function runStoryPhases(
       const scoreMatch = (res.stdout + res.stderr).match(/Score:\s*(\d+)\/100/i);
       if (scoreMatch) {
         score = parseInt(scoreMatch[1], 10);
+      }
+
+      if (!options.dryRun) {
+        try {
+          if (phase.name === "triage") {
+            await updateFeatureStatus(targetDir, storyId, "ready-for-patch", 0, false, {
+              phase: "triage",
+              triage_verdict: {
+                score: score || 0,
+                verdict: "REMEDIATE",
+                summary: (res.stderr || res.stdout).slice(0, 500),
+              },
+            });
+          }
+        } catch {}
       }
 
       return {
@@ -1213,7 +1371,6 @@ export async function runEpicLoop(options: EpicLoopOptions): Promise<EpicLoopRes
 
       if (phaseResult.success) {
         storyPassed = true;
-        await updateFeatureStatus(targetDir, storyId, "done", retries);
         doneIds.add(storyId);
         completedStories.push(storyId);
 
@@ -1238,6 +1395,13 @@ export async function runEpicLoop(options: EpicLoopOptions): Promise<EpicLoopRes
           return failEpic(`Story ${storyId} done but commit crashed: ${msg} — resolve git state, then re-run`);
         }
 
+        // Tulis status done SETELAH commit berhasil (INV-11: Done-Git Atomicity)
+        await updateFeatureStatus(targetDir, storyId, "done", retries, false, {
+          phase: "triage",
+          triage_verdict: { score: 100, verdict: "PASS" },
+          commit: commitMessage || null,
+        });
+
         await appendSpecLedger(targetDir, storyId, [
           `done (triage 100/100, retries ${retries})`,
           ...(commitMessage ? [`commit: ${commitMessage}`] : [`commit: skipped (no changes)`]),
@@ -1254,11 +1418,18 @@ export async function runEpicLoop(options: EpicLoopOptions): Promise<EpicLoopRes
         });
       } else {
         retries++;
-        await updateFeatureStatus(targetDir, storyId, "in-progress", retries);
+        await updateFeatureStatus(targetDir, storyId, "ready-for-patch", retries, false, {
+          phase: "triage",
+          triage_verdict: {
+            score: phaseResult.score || 0,
+            verdict: "REMEDIATE",
+            summary: phaseResult.error || "Triage failed, retry needed",
+          },
+        });
 
         if (retries >= maxRetries) {
           // Circuit breaker tripped! Explicitly record failed state on disk (DATA-STATE-01, ADV-CIRCUIT-BREAKER-STATE-LEAK)
-          await updateFeatureStatus(targetDir, storyId, "failed", retries);
+          await updateFeatureStatus(targetDir, storyId, "failed", retries, true);
           failedStories.push(storyId);
           options.onStoryFail?.(storyId, phaseResult.error || "Circuit breaker tripped");
 
