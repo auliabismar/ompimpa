@@ -35,13 +35,13 @@ Dokumen referensi (*Information-Oriented*) ini memuat daftar lengkap perintah sl
 | **`bin/ompimpa init [--force] [--ash\|--no-ash] [--oban\|--no-oban]`** | Scaffold Greenfield (`scope=full`) / Brownfield (`scope=delta`), auto-detect `:ash`/`:oban` dari `mix.exs` | Story C-04 |
 | **`bin/ompimpa doctor`** | Diagnosa mix.exs, ompimpa.toml, feature-status, AGENTS.md, hooks, agents sync, Diátaxis, rules, manifests, toolchain | Setup & Tooling |
 | **`bin/ompimpa verify [--tier1\|--tier2\|--tier3\|--all]`** | Default T1+T2 blocking (<12s), T3 background (`test`, `credo --strict`, `sobelow --strict --format json`) | Story B-04 |
-| **`bin/ompimpa dev [--epic <ID>] [--story <ID>] [--auto] [--no-harness]`** | Validasi DAG + 5 fase per story (story→atdd→code→review→triage). Flag `--no-harness` menonaktifkan sesi headless omp. | Story A-02, D-04 |
+| **`bin/ompimpa dev [--epic <ID>] [--story <ID>] [--auto] [--no-harness]`** | Validasi DAG + paired-state loop per story. Mendukung checkpoint resumability (melompati fase yang sudah beres), diff-aware auto-commit, dan INV-11 atomicity. | Story A-02, D-04, ADR-007 |
 | **`bin/ompimpa story <ID> [--dry-run] [--force]`** | Generate `_ompimpa/specs/SPEC-[ID].md` → `ready-for-atdd` | Story D-01 |
 | **`bin/ompimpa atdd <ID>`** | Gate SPEC + cek berkas tes ada → `ready-for-dev` | Story E-01 |
 | **`bin/ompimpa code <ID> [--circuit-breaker=N]`** | Gate SPEC (INV-09), info scoped-test, next `/review` | D-02 |
 | **`bin/ompimpa review <ID> [--story=ID]`** | Panel multi-spesialis 10 subagent terisolasi + scorecard TEA | Story B-01/B-03 |
-| **`bin/ompimpa triage <ID> [--strict] [--json] [--adjudicate] [--no-adjudicate]`** | Dedup `file:line:ruleId`, scoring 100/100, & adjudikasi sengketa Tier 2.5 | Story D-02/B-02 |
-| **`bin/ompimpa status [<ID>]`** | Inspeksi kanonis story lifecycle (backlog → done), verifikasi SPEC, berkas uji, bukti review, triage verdict, dan git history | Story E-01 / Status Canon |
+| **`bin/ompimpa triage <ID> [--strict] [--json] [--adjudicate] [--no-adjudicate]`** | Dedup `file:line:ruleId`, scoring 100/100, adjudikasi sengketa Tier 2.5, dan pencatatan Adjudication Ledger (INV-12) | Story D-02/B-02, ADR-007 |
+| **`bin/ompimpa status [<ID>]`** | Inspeksi kanonis story lifecycle (ADR-007 paired states), metadata checkpoint (run, phase, spec, commit, triage), berkas uji, bukti review, dan git history | ADR-007 / Status Canon |
 | **`bin/ompimpa tui [--show-thinking] [--fps <n>]`** | Dashboard terminal interaktif (EPIC-F) pemantau kanban stories, spec JIT, dan live stream kegiatan subagent | EPIC-F (F-01..F-05) |
 | **`bin/ompimpa inventory --balairung <file> [--prd <file>] [--stories <file>]`** | Gerbang tabel Inventaris + cakupan PRD anti scope-truncation (INV-10) | Balairung→PRD |
 | **`bin/ompimpa prewalk [paths]`** | Scan Elixir vs 26 Iron Laws + cek DAG sirkular | Story A-01 |

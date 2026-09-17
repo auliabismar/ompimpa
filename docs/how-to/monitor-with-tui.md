@@ -44,10 +44,12 @@ Layar monitor terbagi menjadi dua panel utama berbasis ANSI escape sequence murn
 
 ### A. Panel Kiri — Kanban Stories
 Menampilkan daftar seluruh story dari `_ompimpa/stories.yaml` beserta status terkini dari `_ompimpa/status/feature-status.yaml`:
-* `✅ done`: Story telah lulus verifikasi 100/100 dan dicommit.
-* `▶️ in-progress`: Story sedang dalam fase implementasi koding atau review aktif.
-* `⏳ backlog / ready-for-atdd / ready-for-dev`: Story mengantre dalam urutan topologis DAG.
-* `❌ failed / blocked`: Story terhenti oleh circuit breaker atau dependensi belum tuntas.
+* `✅ done`: Story telah lulus verifikasi 100/100, ter-commit di Git, dan tercatat commit SHA-nya.
+* `▶️ in-*` (`in-story`, `in-atdd`, `in-dev`, `in-review`, `in-triage`): Story sedang aktif dieksekusi dalam subproses/sesi fase tersebut.
+* `⏳ ready-*` (`ready-for-atdd`, `ready-for-dev`, `ready-for-review`, `ready-for-triage`): Story telah menyelesaikan checkpoint fase sebelumnya dan siap melangkah ke fase berikutnya.
+* `🔄 ready-for-patch`: Story sedang dalam siklus remediasi triage untuk perbaikan terarah langsung ke fase koding.
+* `⏳ backlog`: Story berada dalam antrean DAG.
+* `❌ failed / blocked`: Story terhenti oleh circuit breaker (maksimal 3 retry) atau dependensi belum tuntas.
 
 ### B. Panel Kanan — Multi-Tab Activity & Spec
 Memuat 3 tab tampilan interaktif:

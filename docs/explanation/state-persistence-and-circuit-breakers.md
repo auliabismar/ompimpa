@@ -17,9 +17,13 @@ Jika status pekerjaan (mana story yang selesai, mana yang sedang dikerjakan) han
 1. **Master Stories DAG (`_ompimpa/stories.yaml`)**:
    Menyimpan seluruh story sebagai Directed Acyclic Graph (DAG) terurut topologis lengkap dengan relasi dependensi (`blocked_by`), kepemilikan epic, dan *kill criteria* eksplisit (Story A-02).
 2. **Feature Status Tracker (`_ompimpa/status/feature-status.yaml`)**:
-   Mencatat state real-time per story sesuai `src/status.ts:STATUS_ORDER` (`backlog` → `ready-for-atdd` → `ready-for-dev` → `in-progress` → `in-review` → `done`, plus non-maju `failed`/`blocked`) beserta riwayat jumlah retry. Status actionable (`backlog`, `ready-for-atdd`, `ready-for-dev`, `in-progress`, `in-review`) membuat outer loop terus berjalan.
-3. **Penyelarasan Sesi Otomatis**:
-   Saat perintah `/ompimpa:dev` dipanggil di sesi baru, agen cukup membaca kedua berkas tersebut, memvalidasi bahwa tidak ada dependensi yang memblokir, dan langsung melanjutkan tepat di story yang siap dikerjakan (*ready-for-dev*).
+   Mencatat state real-time per story berbasis **Two-Tier Paired State Machine (ADR-007)**:
+   $$\text{backlog} \longrightarrow \text{in-story} \longrightarrow \text{ready-for-atdd} \longrightarrow \text{in-atdd} \longrightarrow \text{ready-for-dev} \longrightarrow \text{in-dev} \longrightarrow \text{ready-for-review} \longrightarrow \text{in-review} \longrightarrow \text{ready-for-triage} \longrightarrow \text{in-triage} \longrightarrow \text{done}$$
+   - **Loopback Remediasi**: Jika evaluasi triage menghasilkan vonis `REMEDIATE` (skor < 100), status beralih ke `ready-for-patch` yang memotong alur langsung ke `in-dev` (run ke-N) membawa *Remediation Plan* terfokus tanpa mengulang fase story atau ATDD.
+   - **Checkpoint Sub-blok**: Menyimpan referensi artefak (`phase`, `spec`, `test_files`, `files_touched`, `review_artifacts`, `triage_verdict`, `commit`) dan nomor iterasi `run: N` untuk menjamin *resumability* tanpa pemborosan denda token saat terjadi interupsi.
+   - **Invarian INV-11 (Done-Git Atomicity)**: Status `done` terikat secara atomik dengan Git Commit. Sistem memblokir keras penulisan status `done` jika *working tree* pada berkas target/tes masih mendeteksi *uncommitted changes*.
+3. **Penyelarasan Sesi & Resumability Otomatis**:
+   Saat perintah `ompimpa dev` atau loop dipanggil kembali setelah terputus, runner secara cerdas membaca checkpoint status terakhir dan langsung melanjutkan dari fase terkait (`ready-for-dev` langsung ke koding, `ready-for-review` langsung ke review, `ready-for-patch` langsung ke perbaikan kode), bukan mengulang dari awal.
 ---
 
 ## 2. Mengapa Proteksi Circuit Breaker Wajib (*Token Loss Prevention*)?

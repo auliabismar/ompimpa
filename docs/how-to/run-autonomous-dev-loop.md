@@ -32,13 +32,14 @@ Untuk mengerjakan satu story berikutnya yang siap dikerjakan:
      - **4 Lensa Spesifikasi BMAD**: `bmad_adversarial`, `bmad_gap_verifier`, `bmad_structural`, `bmad_completeness`.
      - **6 Spesialis phxagents**: `ompimpa-ironlaw`, `ompimpa-security`, `ompimpa-test`, `ompimpa-verify`, `ompimpa-ecto`/`ash`, `ompimpa-liveview`/`oban`.
    - Menyimpan seluruh temuan review ke `_ompimpa/review/[ID]-[agent].json`.
-   - Menjalankan **Triage Engine**: deduplikasi temuan dengan hash `file:line:ruleId`, penilaian terhadap 35-Row Criteria Registry, dan penerbitan *Remediation Plan* P0→P1→P2.
-   - Wajib mencapai skor **100/100 PASS**. Jika ditemukan P0/P1, memicu remediasi terfokus (maksimal `max_triage_fix_cycles = 3`).
-5. **Semantic Git Commit & Status Sync (`smol` model)**:
-   - Agen Commit bertenaga model **`smol`** menganalisis staged diff dan menghasilkan **Semantic Commit Message** standar (`feat`, `fix`, `test`, `refactor`).
-   - Eksekusi commit diverifikasi secara instan oleh **Fast Pre-Commit Gate** (< 2 detik).
-   - Mengubah status story di `_ompimpa/status/feature-status.yaml` menjadi `status: done`.
-
+  - Menjalankan **Triage Engine**: deduplikasi temuan dengan hash `file:line:ruleId`, penilaian terhadap 35-Row Criteria Registry, dan penerbitan *Remediation Plan* P0→P1→P2.
+  - **Tier 2.5 Mini Balairung Adjudication & Ledger (INV-12)**: Sengketa temuan antara 4 Lensa BMAD dan spesialis teknis diadjudikasi otomatis oleh model dengan pencatatan transparan di `_ompimpa/triage/[ID]-adjudication.json` dan seksi 11 SPEC. Aturan statutori (26 Hukum Besi) dilindungi dan dilarang dibatalkan.
+  - Wajib mencapai skor **100/100 PASS**. Jika ditemukan P0/P1, status dialihkan ke `ready-for-patch` untuk memicu remediasi terfokus langsung ke fase koding (maksimal `max_triage_fix_cycles = 3`) tanpa mengulang fase story atau ATDD.
+5. **Diff-Aware Semantic Git Commit & Status Sync (`smol` model)**:
+  - Agen Commit `ompimpa-commit` bertenaga model **`smol`** menganalisis staged diff (`git diff --stat`, `git diff --name-status`, potongan diff) dan metadata cerita untuk menghasilkan **Semantic Conventional Commit** yang akurat merinci berkas yang diubah.
+  - Mendukung repositori standar, Git Worktrees (`~/.omp/wt/`), dan Git Submodules.
+  - Eksekusi commit diverifikasi secara instan oleh **Fast Pre-Commit Gate** (< 2 detik).
+  - **Invarian INV-11 (Done-Git Atomicity)**: Status `done` beserta commit SHA di `_ompimpa/status/feature-status.yaml` HANYA sah ditulis setelah eksekusi commit berhasil dan working tree bersih.
 ## 2. Menjalankan Mode Otomatis Penuh (`--auto`)
 
 Untuk menyelesaikan seluruh slice dalam satu inisiatif tanpa intervensi manual:
@@ -49,7 +50,7 @@ Untuk menyelesaikan seluruh slice dalam satu inisiatif tanpa intervensi manual:
 
 ### Mekanisme Otonom OMP Hook (`session_stop`):
 * Saat satu story selesai dan sesi hendak berhenti, hook OMP `session_stop` otomatis membaca `_ompimpa/status/feature-status.yaml`.
-* Jika masih ditemukan story dalam salah satu dari **5 status actionable kanonis** (`backlog`, `ready-for-atdd`, `ready-for-dev`, `in-progress`, `in-review`), hook menginstruksikan agent untuk melanjutkan (`continue: true`) ke story berikutnya secara rekursif hingga seluruh roadmap tuntas.
+* Jika masih ditemukan story dalam status actionable kanonis (`backlog`, `in-story`, `ready-for-atdd`, `in-atdd`, `ready-for-dev`, `in-dev`, `ready-for-review`, `in-review`, `ready-for-triage`, `ready-for-patch`), hook menginstruksikan agent untuk melanjutkan (`continue: true`) ke story berikutnya secara rekursif hingga seluruh roadmap tuntas.
 
 ---
 
@@ -68,9 +69,16 @@ bin/ompimpa dev --epic EPIC-A --auto --no-harness
 3. Untuk setiap story:
    - Membuka sub-proses OMP harness bersih (*fresh context window*).
    - Menjalankan tahapan koding, pengujian, 10-isolated review, dan triage.
-   - Mengikat commit semantik saat skor 100/100 tercapai dan mengupdate state di disk.
+   - Mengikat commit semantik saat skor 100/100 tercapai dan mencatat status `done` serta commit SHA di disk.
    - Menutup sub-proses dan membersihkan memori sebelum melangkah ke story berikutnya.
 
+### Kapabilitas Resumability Berbasis Checkpoint (ADR-007)
+Jika loop terputus di tengah jalan (misalnya koneksi putus atau timeout sesi review):
+* Anda cukup menjalankan kembali perintah `bin/ompimpa dev --epic <ID> --auto`.
+* Runner otomatis membaca sub-blok `checkpoint:` di `feature-status.yaml` dan melanjutkan tepat dari status terakhir:
+  - Status `ready-for-dev` ➔ langsung koding tanpa mengulang generate spec atau tes merah.
+  - Status `ready-for-review` ➔ langsung dispatch review 10 subagent.
+  - Status `ready-for-patch` ➔ langsung koding perbaikan dengan menyuntikkan Remediation Plan triage sebelumnya.
 ---
 
 ## 4. Eksekusi Fase Modular Mandiri (Step-by-Step)

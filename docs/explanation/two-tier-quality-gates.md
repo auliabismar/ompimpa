@@ -95,11 +95,15 @@ OMP-IMPA memisahkan tanggung jawab pemeriksaan secara presisi pada setiap fase e
      - Seluruh temuan subagent direkam ke `_ompimpa/review/[ID]-[agent].json`.
      - Dideduplikasi dengan hash `file:line:ruleId` mempertahankan keparahan tertinggi.
      - Dinilai terhadap Criteria Registry 35-row dengan baseline 100 dan penalti (-30 Critical, -15 High, -5 Medium, -2 Low).
-  4. **Tiered Verification Model**:
+  4. **Tier 2.5 Mini Balairung Adjudication & Ledger (INV-12 - ADR-007)**:
+     - Mendeteksi *contested findings* (sengketa temuan antar-reviewer atau ambiguitas interpretasi 4 Lensa BMAD).
+     - Mengadjudikasi secara cerdas menggunakan model `smol` untuk membuktikan *false-positives* berbantu baris kode nyata.
+     - **Adjudication Ledger**: Mencatat seluruh alasan putusan ke berkas `_ompimpa/triage/[ID]-adjudication.json` dan seksi 11 SPEC untuk audit manusia.
+     - **Statutory Shield**: Aturan statutori (26 Hukum Besi Elixir) dilarang keras di-dismiss oleh model.
+  5. **Tiered Verification Model**:
      - **Tier 1 (Inner Loop <2s)**: `mix compile --warnings-as-errors` + `mix format --check-formatted`.
      - **Tier 2 (Per-Story Gate <10s)**: `mix test --stale` + 10 reviewers + triage.
      - **Tier 3 (Background Audit)**: Full `mix test` + Credo Strict + Sobelow Security.
-
 ## 4. Matriks Perbandingan & Pencegahan Redundansi
 
 | Pemeriksaan | Tier 0 (TTSR) | Tier 1 (OMP Hook) | Tier 2 (Git Hook) | Tier 3 (Verify) |

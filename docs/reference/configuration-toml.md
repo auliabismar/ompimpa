@@ -89,6 +89,7 @@ use_git_worktrees = true       # Eksekusi task paralel di Git Worktree terisolas
 binary = "omp"                   # Biner harness yang di-spawn per fase code/review
 #model_dev = "default"           # Model sesi DEV (fuzzy match); kosong = default sesi
 #model_review = "default"        # Model sesi REVIEW; kosong = default sesi
+#model_commit = "smol"           # Model sesi COMMIT (Conventional Commit); default: smol
 #session_timeout_ms = 600000    # Timeout per sesi harness
 # Pemetaan Model Subagent (Terkoneksi ke OMP Roles)
 # ==========================================
