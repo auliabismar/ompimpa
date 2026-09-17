@@ -1719,7 +1719,7 @@ export async function handleStatus(flags: string[], repoRoot?: string): Promise<
   } catch {
     // empty
   }
-  const { statusMap } = parseFeatureStatusYaml(statusContent);
+  const { statusMap, stories: storiesStatus } = parseFeatureStatusYaml(statusContent);
   if (!storyId) {
     const counts: Record<string, number> = {};
     console.log(`\n📊 OMP-IMPA Status (kanban): ${stories.length} stories`);
