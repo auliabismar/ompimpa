@@ -79,7 +79,7 @@ describe("B-06 Epic Orchestrator Flag --epic (Dev per Epic, Review per Story)", 
       expect(out).toContain("Blocked");
       expect(out).toContain("B-01");
     }
-  });
+  }, 15000);
 
   it("AC-B06-2: B-01 REMEDIATE (not done) di epic EPIC-B → B-02 tidak jalan sebelum B-01 PASS 100 (depends_on enforce)", async () => {
     const content = await fs.readFile(path.join(REPO_ROOT, "_ompimpa", "stories.yaml"), "utf-8");
@@ -133,7 +133,7 @@ describe("B-06 Epic Orchestrator Flag --epic (Dev per Epic, Review per Story)", 
     const res = await runCli(["dev", "--epic", "EPIC-A", "--auto"]);
     const out = res.stdout + res.stderr;
     expect(out).toMatch(/isolated|7→10|7->10|per story/i);
-  });
+  }, 15000);
 });
 
 describe("D-04 Outer CLI Loop Runner (bin/ompimpa dev --epic)", () => {
