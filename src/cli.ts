@@ -1802,7 +1802,7 @@ export async function handleStatus(flags: string[], repoRoot?: string): Promise<
     console.log(`   Triage: (gagal dihitung)`);
   }
 
-  for (const role of ["dev", "review"] as const) {
+  for (const role of ["dev", "review", "commit"] as const) {
     const logRel = `_ompimpa/runs/${storyId}-${role}.log`;
     const full = path.join(targetDir, logRel);
     if (!(await fileExists(full))) {
