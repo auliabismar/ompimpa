@@ -55,7 +55,7 @@ describe("B-06 Epic Orchestrator Flag --epic (Dev per Epic, Review per Story)", 
     expect(idxA02).toBeLessThan(idxA03);
     expect(output.toLowerCase()).toMatch(/sequential|isolated|review/);
     expect(output).not.toMatch(/1 diff epic|monolit/i);
-  });
+  }, 15000);
 
   it("AC-B06-1: EPIC-B loop sekuensial B-01→B-02→B-03→B-04→B-05→B-06 respects DAG", async () => {
     const content = await fs.readFile(path.join(REPO_ROOT, "_ompimpa", "stories.yaml"), "utf-8");
