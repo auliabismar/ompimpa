@@ -28,6 +28,7 @@ yarn-error.log*
 .claude/file-history/
 logs/
 *.log
+_ompimpa/runs/
 
 # ==========================================
 # Environment Variables & Secrets
