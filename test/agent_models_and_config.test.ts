@@ -100,7 +100,7 @@ ironlaw = "smol"
       const files = await fs.readdir(agentsDir);
       const agentFiles = files.filter((f) => f.startsWith("ompimpa-") && f.endsWith(".md"));
 
-      expect(agentFiles.length).toBe(14);
+      expect(agentFiles.length).toBe(15);
 
       for (const file of agentFiles) {
         const content = await fs.readFile(path.join(agentsDir, file), "utf-8");
@@ -114,7 +114,7 @@ ironlaw = "smol"
 
     it("should match default tier assignments", () => {
       expect(resolveAgentModel("ompimpa-ironlaw")).toBe("smol");
-      expect(resolveAgentModel("ompimpa-commit")).toBe("smol");
+      expect(resolveAgentModel("ompimpa-verify")).toBe("smol");
       expect(resolveAgentModel("ompimpa-balairung")).toBe("slow");
       expect(resolveAgentModel("ompimpa-ideate")).toBe("slow");
       expect(resolveAgentModel("ompimpa-security")).toBe("slow");
@@ -163,7 +163,7 @@ dev = "plan"
       await fs.writeFile(path.join(tempDir, "ompimpa.toml"), customToml, "utf-8");
 
       const res = await syncAgentModels(tempDir, tempAgentsDir);
-      expect(res.total).toBe(14);
+      expect(res.total).toBe(15);
       expect(res.updated.length).toBeGreaterThan(0);
 
       // Verify updated agent file

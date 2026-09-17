@@ -143,6 +143,32 @@ describe("Prompt kontrak sesi", () => {
     expect(prompt).toContain("verdict");
     expect(prompt).toContain("false|maybe-false");
     expect(prompt).toContain("dilarang mengubah file");
+    expect(prompt).toContain("ompimpa-ironlaw → agent");
+    expect(prompt).toContain("dilarang memakai agent generik");
+    expect(prompt).toContain("BATAS WAKTU");
+  });
+  it("partitionReviewBatches memecah spec vs tech, prompt memuat rencana gelombang", async () => {
+    const { partitionReviewBatches, buildReviewPrompt: buildRP } = await import("../src/harness/prompts");
+    const ten = partitionReviewBatches(["bmad_adversarial", "bmad_gap_verifier", "bmad_structural", "bmad_completeness", "ompimpa-ironlaw", "ompimpa-security", "ompimpa-test", "ompimpa-verify", "ompimpa-ecto", "ompimpa-liveview"]);
+    expect(ten.length).toBe(2);
+    expect(ten[0].name).toBe("spec");
+    expect(ten[0].reviewerIds.length).toBe(4);
+    expect(ten[1].name).toBe("tech");
+    expect(ten[1].reviewerIds.length).toBe(6);
+    const seven = partitionReviewBatches(["ompimpa-prd", "ompimpa-ironlaw", "ompimpa-security", "ompimpa-test", "ompimpa-verify", "ompimpa-ash", "ompimpa-oban"]);
+    expect(seven.length).toBe(2);
+    expect(seven[0].reviewerIds).toEqual(["ompimpa-prd"]);
+    const prompt = buildRP({
+      story: demoStory,
+      specRel: "_ompimpa/specs/SPEC-T-01.md",
+      targetFiles: ["lib/t1.ex"],
+      testFiles: ["test/t1_test.exs"],
+      reviewDirRel: "_ompimpa/review",
+      reviewerIds: ["ompimpa-prd", "ompimpa-ironlaw"],
+      markerRel: "_ompimpa/review/T-01.review.result.json",
+    });
+    expect(prompt).toContain("GELOMBANG 1/2");
+    expect(prompt).toContain("SEBELUM membuka gelombang 2");
   });
 });
 

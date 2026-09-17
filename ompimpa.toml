@@ -50,12 +50,16 @@ steps = [
 [quality.verify.tier1] # Inner Loop <2s — blocking per story
 steps = ["compile --warnings-as-errors", "format --check-formatted"]
 [quality.verify.tier2] # Per-Story Gate <10s — blocking per story
-steps = ["test --stale"] # + 7 reviewers + triage 100/100 (B-01/B-02)
+steps = ["test --stale"] # + 10 reviewers + triage 100/100 (B-01/B-02/B-03)
 [quality.verify.tier3] # Background Audit — non-blocking
 steps = ["test", "credo --strict", "sobelow --strict --format json"]
 
 [resources]
 use_git_worktrees = true         # Execute parallel tasks in isolated Git Worktrees (~/.omp/wt/)
+[harness]
+binary = "omp"                   # Biner harness yang di-spawn per fase code/review
+session_timeout_ms = 600000      # Timeout sesi harness omp -p (10 menit, menampung fan-out 10 reviewer)
+phase_timeout_ms = 60000         # Timeout fase lokal: scoped-test re-run + agregasi review (bukan sesi)
 
 [models]
 balairung = "slow"              # Dewan Tokoh Balairung (3-Round Deliberation & Dialectics)

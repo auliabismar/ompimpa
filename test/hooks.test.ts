@@ -62,6 +62,31 @@ describe("OMP-IMPA Guard Hook", () => {
       expect(res?.reason).toContain("Hukum Besi #26");
     });
 
+    it("should allow commit message containing -n text (no false positive)", () => {
+      const event: ToolCallEvent = {
+        toolName: "bash",
+        input: { command: 'git commit -m "fix -n 5 edge"' },
+      };
+      const res = handleToolCallGuard(event);
+      expect(res).toBeUndefined();
+    });
+
+    it("should allow -n inside -m value but block real -n flag", () => {
+      const msg = handleToolCallGuard({ toolName: "bash", input: { command: 'git commit -m "-n"' } });
+      expect(msg).toBeUndefined();
+      const flag = handleToolCallGuard({ toolName: "bash", input: { command: 'git commit -n -m "bypass hook"' } });
+      expect(flag?.block).toBeTrue();
+    });
+
+    it("should block --no-verify via absolute git path and chained commands", () => {
+      const abs = handleToolCallGuard({ toolName: "bash", input: { command: '/usr/bin/git commit --no-verify -m "quick"' } });
+      expect(abs?.block).toBeTrue();
+      const chained = handleToolCallGuard({ toolName: "bash", input: { command: 'git add -A && git commit --no-verify -m "x"' } });
+      expect(chained?.block).toBeTrue();
+      const cleanChain = handleToolCallGuard({ toolName: "bash", input: { command: 'git add -A && git commit -m "ok"' } });
+      expect(cleanChain).toBeUndefined();
+    });
+
     it("should notify user when bare mix test is called", () => {
       const event: ToolCallEvent = {
         toolName: "bash",

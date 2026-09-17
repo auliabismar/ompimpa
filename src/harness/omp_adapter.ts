@@ -18,7 +18,7 @@ export type HarnessExecutor = (
   timeoutMs?: number
 ) => Promise<{ code: number; stdout: string; stderr: string }>;
 
-export type HarnessRole = "dev" | "review";
+export type HarnessRole = "dev" | "review" | "commit";
 
 /**
  * Kontrak penyelesaian sesi. Ditulis OLEH SESI AGEN sebagai aksi terakhir,
@@ -34,6 +34,8 @@ export interface HarnessResultMarker {
   /** Bukti uji dev dalam bentuk argv agar adapter bisa menjalankan ulang. */
   tests?: { argv: string[]; exit: number };
   finishedAt?: string;
+  /** Pesan commit semantik yang dihasilkan sesi commit. */
+  commitMessage?: string;
 }
 export interface HarnessSessionSpec {
   role: HarnessRole;

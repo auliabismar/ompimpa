@@ -12,11 +12,11 @@ import {
   parseFeatureStatusYaml,
   getBlockedStory,
 } from "./prewalk";
-import { runReview, dispatchIsolatedReview, loadReviewSessionMarker, buildReviewPanel, type ReviewResult } from "./reviewer";
+import { runReview, dispatchIsolatedReview, loadReviewSessionMarker, buildReviewPanel, runLocalReviewWorker, type ReviewResult } from "./reviewer";
 import { generateStorySpec, loadStoryDetail, partitionTargetFiles, type StoryDetail, type StoryAC } from "./story_spec";
 import { aggregateReviews, isEnvelopeCleanReport, calculateScore, remediationPlan, type AggregateResult } from "./triage";
 import { detectContestedFindings, applyAdjudicationResults, runAdjudicationTask } from "./mini_balairung";
-import { runEpicLoop, runStoryPhases, updateFeatureStatus, commitStoryChanges, appendSpecLedger } from "./loop_runner";
+import { runEpicLoop, runStoryPhases, updateFeatureStatus, commitStoryChanges, appendSpecLedger, defaultSubprocessExecutor } from "./loop_runner";
 import { validateBalairungInventory, checkPrdCoverage } from "./inventory";
 const VERSION = "1.0.0";
 import { runTui } from "./tui/index";
@@ -39,8 +39,9 @@ export const DEFAULT_MODELS: Record<string, string> = {
   "ompimpa-commit": "smol",
   "ompimpa-ironlaw": "smol",
   "ompimpa-security": "slow",
+  "ompimpa-verify": "smol",
   "ompimpa-debug": "slow",
-  "ompimpa-triz": "slow",
+  "ompimpa-triage": "smol",
 };
 
 export function resolveAgentModel(agentName: string, modelsConfig?: OmpimpaModelsConfig): string {
@@ -55,7 +56,7 @@ export function resolveAgentModel(agentName: string, modelsConfig?: OmpimpaModel
   if (agentName === "ompimpa-commit" && modelsConfig.commit) return modelsConfig.commit;
   if (agentName === "ompimpa-ironlaw" && modelsConfig.ironlaw) return modelsConfig.ironlaw;
   if (agentName === "ompimpa-security" && modelsConfig.security) return modelsConfig.security;
-  if (agentName === "ompimpa-debug" && modelsConfig.debug) return modelsConfig.debug;
+  if (agentName === "ompimpa-verify" && (modelsConfig.verify || modelsConfig.ironlaw)) return modelsConfig.verify || modelsConfig.ironlaw!;
   if (agentName === "ompimpa-doc" && modelsConfig.doc) return modelsConfig.doc;
   if (agentName === "ompimpa-triz" && (modelsConfig.triz || modelsConfig.ideate)) return modelsConfig.triz || modelsConfig.ideate!;
 
@@ -346,9 +347,23 @@ async function handleReview(args: string[]) {
     } catch {}
   }
   if (storyId && autoDispatch) {
-    await dispatchIsolatedReview(storyId, { targetDir });
+    const panel = buildReviewPanel(loadOmpimpaConfig(targetDir));
+    await dispatchIsolatedReview(storyId, {
+      targetDir,
+      panel,
+      runReviewer: (member, attempt) => runLocalReviewWorker(member, { ...attempt, targetPaths }),
+    });
+    const sessionMarker = await loadReviewSessionMarker(path.join(targetDir, "_ompimpa", "review"), storyId);
+    if (!sessionMarker) {
+      const reviewDir = path.join(targetDir, "_ompimpa", "review");
+      await fs.mkdir(reviewDir, { recursive: true });
+      await fs.writeFile(
+        path.join(reviewDir, `${storyId}.review.result.json`),
+        JSON.stringify({ role: "review", story: storyId, completed: true, files: panel.map((m) => `${storyId}-${m.id}.json`) }, null, 2) + "\n",
+        "utf-8",
+      );
+    }
   }
-  console.log(`\n🛡️ Running OMP-IMPA Multi-Specialist Review Panel in: ${targetDir}`);
   if (storyId) {
     console.log(`   Story: ${storyId} (INV-01 isolation enforced — tanpa berkas isolated = P0 BLOCKED)`);
     if (targetPaths.length > 0) {
@@ -1011,6 +1026,7 @@ async function handleDev(flags: string[]) {
         binary: ompimpaConfig.harness?.binary,
         modelDev: ompimpaConfig.harness?.model_dev || ompimpaConfig.models?.dev,
         modelReview: ompimpaConfig.harness?.model_review,
+        modelCommit: ompimpaConfig.harness?.model_commit || ompimpaConfig.models?.commit || "smol",
         sessionTimeoutMs: ompimpaConfig.harness?.session_timeout_ms,
       }
     : undefined;
@@ -1071,7 +1087,7 @@ async function handleDev(flags: string[]) {
     await updateFeatureStatus(targetDir, storyFilter, "done", result.retries);
     let commitMessage: string | undefined;
     try {
-      const commitRes = await commitStoryChanges(targetDir, storyFilter);
+      const commitRes = await commitStoryChanges(targetDir, storyFilter, defaultSubprocessExecutor, { harness });
       if (commitRes.commitMessage) {
         commitMessage = commitRes.commitMessage;
         console.log(`📦 [Auto-Commit] ${commitRes.commitMessage}`);

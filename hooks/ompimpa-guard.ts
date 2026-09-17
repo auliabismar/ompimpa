@@ -61,6 +61,7 @@ export interface OmpimpaModelsConfig {
   dev?: string;
   commit?: string;
   ironlaw?: string;
+  verify?: string;
   security?: string;
   debug?: string;
   doc?: string;
@@ -138,8 +139,9 @@ export interface OmpimpaConfig {
     model_dev?: string;
     /** Model sesi REVIEW; kosong = default sesi. */
     model_review?: string;
-    /** Timeout per sesi harness ms (default 600000). */
+    /** Timeout sesi harness ms (default 600000) + timeout fase lokal phase_timeout_ms (default 60000). */
     session_timeout_ms?: number;
+    phase_timeout_ms?: number;
   };
 }
 
@@ -288,6 +290,124 @@ export function validateScoreFloor(
 }
 
 /**
+ * Memecah perintah shell menjadi token argv dengan menghormati kutip
+ * tunggal/ganda. Operator shell (;, &, |) menjadi token sendiri agar
+ * perintah berantai tetap terdeteksi per segmen.
+ */
+function splitShellTokens(command: string): string[] {
+  const tokens: string[] = [];
+  let cur = "";
+  let quote: string | null = null;
+  let escaped = false;
+  const push = (): void => {
+    if (cur.length > 0) {
+      tokens.push(cur);
+      cur = "";
+    }
+  };
+  for (let i = 0; i < command.length; i++) {
+    const ch = command[i];
+    if (escaped) {
+      cur += ch;
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\" && quote !== "'") {
+      escaped = true;
+      continue;
+    }
+    if (quote !== null) {
+      if (ch === quote) quote = null;
+      else cur += ch;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      continue;
+    }
+    if (ch === " " || ch === "\t" || ch === "\n" || ch === "\r") {
+      push();
+      continue;
+    }
+    if (ch === ";" || ch === "&" || ch === "|" || ch === "(" || ch === ")") {
+      push();
+      tokens.push(ch);
+      continue;
+    }
+    cur += ch;
+  }
+  push();
+  return tokens;
+}
+
+/**
+ * INVARIANT: hanya flag argv pasca-`commit` yang dihitung sebagai bypass.
+ * Nilai `-m/--message/-F` (termasuk "-n" di dalam pesan), isi `--opt=nilai`,
+ * dan pathspec setelah `--` selalu diabaikan.
+ */
+export function hasNoVerifyBypass(command: string): boolean {
+  const tokens = splitShellTokens(command);
+  const valueFlags: Record<string, true> = {
+    "-m": true,
+    "--message": true,
+    "-C": true,
+    "--reuse-message": true,
+    "-c": true,
+    "--reedit-message": true,
+    "--author": true,
+    "--date": true,
+    "-F": true,
+    "--file": true,
+    "--template": true,
+    "--cleanup": true,
+  };
+  for (let i = 0; i < tokens.length; i++) {
+    const base = (tokens[i].split("/").pop() || "").toLowerCase();
+    if (base !== "git") continue;
+    let commitIdx = -1;
+    for (let j = i + 1; j < Math.min(i + 8, tokens.length); j++) {
+      const t = tokens[j];
+      if (t === ";" || t === "&" || t === "|" || t === "(" || t === ")") break;
+      if (t.toLowerCase() === "commit") {
+        commitIdx = j;
+        break;
+      }
+      if (t === "-c" || t === "--config") j++;
+    }
+    if (commitIdx < 0) continue;
+    let skipNext = false;
+    for (let k = commitIdx + 1; k < tokens.length; k++) {
+      const t = tokens[k];
+      if (t === ";" || t === "&" || t === "|" || t === "(" || t === ")") break;
+      if (t === "--") break;
+      if (skipNext) {
+        skipNext = false;
+        continue;
+      }
+      if (t === "--no-verify" || t.startsWith("--no-verify=")) return true;
+      if (valueFlags[t]) {
+        skipNext = true;
+        continue;
+      }
+      if (t.startsWith("--")) continue;
+      if (t.startsWith("-") && t.length > 1) {
+        const mPos = t.indexOf("m");
+        if (mPos > 0 && mPos < t.length - 1) {
+          if (t.slice(1, mPos).includes("n")) return true;
+          continue;
+        }
+        if (/^-[A-Za-z]+$/.test(t)) {
+          const letters = t.slice(1);
+          if (letters.includes("n")) return true;
+          if (/[mFCc]/.test(letters)) skipNext = true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+/**
  * Logika pemfilteran & validasi perintah bash sebelum dieksekusi (tool_call).
  */
 export function handleToolCallGuard(
@@ -300,8 +420,9 @@ export function handleToolCallGuard(
   const cwd = ctx?.cwd || process.cwd();
   const config = loadOmpimpaConfig(cwd);
 
-  // 1. Blokir upaya bypass pre-commit hook (Iron Law #26)
-  if (/\bgit\s+commit\b/i.test(command) && /(--no-verify|-n\b)/.test(command)) {
+  // 1. Blokir upaya bypass pre-commit hook (Iron Law #26).
+  // INVARIANT: deteksi berbasis argv (hasNoVerifyBypass) agar isi pesan -m tak dituduh.
+  if (hasNoVerifyBypass(command)) {
     return {
       block: true,
       reason:

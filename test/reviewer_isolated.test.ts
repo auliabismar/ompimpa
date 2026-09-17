@@ -61,6 +61,52 @@ describe("B-01 Dispatch 7 Isolated Reviewers via task isolated:true", () => {
     await fs.rm(tmp, { recursive: true, force: true });
   });
 
+  it("AC-B03-3: runReviewer atomic fan-out — semua runner di-spawn sebelum hasil dibaca", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "ompimpa-atomic-"));
+    const panel: OmpimpaConfig = {
+      quality: { review: { enable_spec_review: true, enable_tech_review: true, parallel_reviewers: 6 } },
+      stacks: { use_ash_framework: true, use_oban: true },
+    };
+    const p = buildReviewPanel(panel);
+    const started: string[] = [];
+    const { runLocalReviewWorker } = await import("../src/reviewer");
+    const dispatch = await dispatchIsolatedReview("AT-01", {
+      targetDir: tmp,
+      panel: p,
+      runReviewer: async (member, attempt) => {
+        started.push(member.id);
+        await runLocalReviewWorker(member, { ...attempt, targetPaths: [] });
+      },
+    });
+    expect(started.sort()).toEqual(p.map((m) => m.id).sort());
+    expect(dispatch.dispatched).toBe(p.length);
+    expect(dispatch.missing.length).toBe(0);
+    expect(dispatch.failed.length).toBe(0);
+    await fs.rm(tmp, { recursive: true, force: true });
+  });
+
+  it("AC-B03-3: runner crash tercatat di failed, bukan men-crash dispatch", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "ompimpa-crash-"));
+    const panel: OmpimpaConfig = {
+      quality: { review: { enable_spec_review: true, enable_tech_review: true, parallel_reviewers: 6 } },
+      stacks: { use_ash_framework: true, use_oban: true },
+    };
+    const p = buildReviewPanel(panel);
+    const victim = p[0].id;
+    const dispatch = await dispatchIsolatedReview("AT-02", {
+      targetDir: tmp,
+      panel: p,
+      runReviewer: async (member) => {
+        if (member.id === victim) throw new Error("reviewer crash");
+      },
+    });
+    expect(dispatch.failed).toContain(victim);
+    expect(dispatch.missing).toContain(victim);
+    const agg = await aggregateReviews("AT-02", { targetDir: tmp, panelIds: p.map((m) => m.id) });
+    expect(agg.findings.some((f) => f.ruleId.includes("reviewer-missing"))).toBeTrue();
+    await fs.rm(tmp, { recursive: true, force: true });
+  });
+
   it("AC-B01-2: 1 reviewer crash/tidak tulis JSON → aggregateReviews timeout 60s catat P1 High reviewer missing bukan crash", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "ompimpa-b01-2-"));
     await fs.mkdir(path.join(tmp, "lib"), { recursive: true });

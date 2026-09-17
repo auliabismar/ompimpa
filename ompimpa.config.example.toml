@@ -54,6 +54,13 @@ steps = ["test", "credo --strict", "sobelow --strict --format json"]
 [resources]
 use_git_worktrees = true         # Execute parallel tasks in isolated Git Worktrees (~/.omp/wt/)
 # ==========================================
+# Headless Harness (dev --epic --auto spawns real omp sessions)
+# ==========================================
+#[harness]
+#binary = "omp"                  # Harness binary spawned per code/review phase
+#session_timeout_ms = 600000     # Per-session timeout (10 min, fits 10-reviewer fan-out)
+#phase_timeout_ms = 60000        # Local phase timeout: scoped-test re-run + review aggregation (not sessions)
+# ==========================================
 # Subagent Model Roles Mapping (OMP Integration)
 # ==========================================
 [models]

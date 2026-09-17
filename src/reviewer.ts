@@ -3,7 +3,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { loadOmpimpaConfig, type OmpimpaConfig } from "../hooks/ompimpa-guard";
 import { runPrewalkScan, type PrewalkFinding } from "./prewalk";
-import type { HarnessResultMarker } from "./harness/omp_adapter";
+import { auditTeaTraceability } from "./triage";
 export interface ReviewPanelMember {
   id: string;
   name: string;
@@ -137,14 +137,22 @@ export function buildReviewPanel(config: OmpimpaConfig): ReviewPanelMember[] {
 }
 
 /**
- * B-01: Dispatch 7 Isolated Reviewers via task isolated:true
- * Setiap reviewer tulis _ompimpa/review/<story>-<reviewer>.json
+ * B-01/B-03: Atomic fan-out N isolated reviewers ala upstream bmad-code-review
+ * (#2565: spawn SEMUA reviewer sebelum membaca output siapa pun).
+ * Dispatcher menerima runReviewer buatan caller (task isolated:true di sesi
+ * omp, atau worker lokal di CLI --auto); CLI tak pernah mensintesis temuan.
  */
 export interface DispatchOptions {
   targetDir?: string;
   reviewDir?: string;
   panel?: ReviewPanelMember[];
   timeoutMs?: number;
+  /**
+   * Runner satu reviewer. WAJIB dipanggil paralel-atomik: seluruh runner
+   * di-spawn sebelum hasil siapa pun dibaca (upstream #2565). Bila kosong,
+   * CLI hanya mereservasi slot [] (bukan bukti review — lihat triage).
+   */
+  runReviewer?: (member: ReviewPanelMember, attempt: { storyId: string; reviewDir: string; targetDir: string }) => Promise<void>;
 }
 
 export interface DispatchResult {
@@ -152,9 +160,207 @@ export interface DispatchResult {
   files: string[];
   /** Panel tanpa file (slot pun tidak ter-reservasi). */
   missing: string[];
+  /** Panel yang runner-nya gagal/crash sebelum menulis bukti. */
+  failed: string[];
   panel: ReviewPanelMember[];
   reviewDir: string;
 }
+
+function isFindingsShape(parsed: unknown): boolean {
+  if (Array.isArray(parsed)) return true;
+  if (parsed !== null && typeof parsed === "object" && "findings" in parsed) {
+    const findings: unknown = parsed.findings;
+    return Array.isArray(findings);
+  }
+  return false;
+}
+export interface LocalReviewerContext {
+  storyId: string;
+  targetDir: string;
+  reviewDir: string;
+  targetPaths: string[];
+  specACs: string[];
+  nowIso: string;
+}
+
+function envelopeFor(memberId: string, storyId: string, nowIso: string, findings: Array<Record<string, unknown>>): string {
+  return JSON.stringify({ reviewer: memberId, story: storyId, completedAt: nowIso, findings }, null, 2) + "\n";
+}
+
+function toLine(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function toStr(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function findingFor(
+  reviewerId: string,
+  severity: string,
+  file: string | undefined,
+  line: number | null,
+  ruleId: string,
+  ruleViolation: string,
+  message: string,
+  recommendation: string,
+  evidence: string,
+  verdict: string,
+): Record<string, unknown> {
+  return {
+    severity,
+    file: file || "global",
+    line,
+    ruleId,
+    rule_violation: ruleViolation,
+    category: "Spec",
+    message,
+    recommendation,
+    remediation: recommendation,
+    verdict,
+    evidence,
+    sources: [reviewerId],
+  };
+}
+
+async function readTargetContents(targetDir: string, targetPaths: string[]): Promise<Array<{ file: string; content: string }>> {
+  const out: Array<{ file: string; content: string }> = [];
+  for (const rel of targetPaths) {
+    try {
+      const full = path.isAbsolute(rel) ? rel : path.join(targetDir, rel);
+      out.push({ file: rel, content: await fs.readFile(full, "utf-8") });
+    } catch {}
+  }
+  return out;
+}
+
+async function loadSpecACs(targetDir: string, storyId: string): Promise<string[]> {
+  try {
+    const trace = await auditTeaTraceability(storyId, { repoRoot: targetDir });
+    if (trace && Array.isArray(trace.coveredACs)) {
+      const missed = Array.isArray(trace.missingACs) ? trace.missingACs : [];
+      return [...trace.coveredACs, ...missed];
+    }
+  } catch {}
+  return [];
+}
+
+async function writeLocalReview(
+  member: ReviewPanelMember,
+  ctx: LocalReviewerContext,
+  findings: Array<Record<string, unknown>>,
+): Promise<void> {
+  await fs.mkdir(ctx.reviewDir, { recursive: true });
+  await fs.writeFile(
+    path.join(ctx.reviewDir, `${ctx.storyId}-${member.id}.json`),
+    envelopeFor(member.id, ctx.storyId, ctx.nowIso, findings),
+    "utf-8",
+  );
+}
+
+async function runLocalAdversarial(member: ReviewPanelMember, ctx: LocalReviewerContext): Promise<void> {
+  const targets = await readTargetContents(ctx.targetDir, ctx.targetPaths);
+  const findings: Array<Record<string, unknown>> = [];
+  for (const t of targets) {
+    const lines = t.content.split(/\r?\n/);
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (/\bTODO\b|\bFIXME\b|\bXXX\b/.test(line)) {
+        findings.push(
+          findingFor(member.id, "Medium", t.file, i + 1, "adversarial-todo-residual", "Residual TODO/FIXME tanpa tiket",
+            `Residual work marker di ${t.file}:${i + 1}: klaim selesai menyimpan utang tak terlacak`, "Hapus marker atau tautkan tiket tindak lanjut.",
+            `Baris ${i + 1} memuat marker kerja belum selesai`, "medium"),
+        );
+      }
+      if (/catch\s*\{[^}]*\}|\brescue\b[^=]*->[^=]*\bok\b/.test(line)) {
+        findings.push(
+          findingFor(member.id, "High", t.file, i + 1, "adversarial-swallowed-error", "Penanganan error menelan kegagalan",
+            `Blok tangkap generik di ${t.file}:${i + 1} berisiko menyembunyikan crash konkurensi BEAM`, "Tangani error spesifik atau rambatkan dengan konteks.",
+            `Pola tangkap generik di baris ${i + 1}`, "medium"),
+        );
+      }
+    }
+  }
+  await writeLocalReview(member, ctx, findings);
+}
+
+async function runLocalGapVerifier(member: ReviewPanelMember, ctx: LocalReviewerContext): Promise<void> {
+  const targets = await readTargetContents(ctx.targetDir, ctx.targetPaths);
+  const blob = targets.map((t) => `\n--- ${t.file} ---\n${t.content}`).join("\n");
+  const findings: Array<Record<string, unknown>> = [];
+  for (const ac of ctx.specACs) {
+    if (!blob.includes(ac)) {
+      findings.push(
+        findingFor(member.id, "High", targets[0]?.file, null, "TEA-01", `AC ${ac} tanpa ketertelusuran di target`,
+          `TEA-01: ${ac} tak disebut di berkas target maupun bukti uji yang dibaca sesi`, "Tambahkan implementasi + asersi menyebut ID AC ini.",
+          `ID ${ac} absen dari seluruh konten target yang diaudit`, "high"),
+      );
+    }
+  }
+  await writeLocalReview(member, ctx, findings);
+}
+
+async function runLocalStructural(member: ReviewPanelMember, ctx: LocalReviewerContext): Promise<void> {
+  const targets = await readTargetContents(ctx.targetDir, ctx.targetPaths);
+  const findings: Array<Record<string, unknown>> = [];
+  const implFiles = targets.filter((t) => /\.(ex|ts|js)$/.test(t.file));
+  for (const t of implFiles) {
+    const isLiveViewOrComponent = /_live\.ex$|\/components\/|\/views\//.test(t.file);
+    const limit = isLiveViewOrComponent ? 1500 : 400;
+    if (t.content.split(/\r?\n/).length > limit) {
+      findings.push(
+        findingFor(member.id, "Medium", t.file, 1, "structural-god-module", "Modul melampaui batas tanggung jawab tunggal",
+          `${t.file} melebihi ${limit} baris — batas domain patut dipecah`, "Pecah modul per batas domain dengan antarmuka eksplisit.",
+          `${t.file} sepanjang ${t.content.split(/\r?\n/).length} baris`, "medium"),
+      );
+    }
+  }
+  await writeLocalReview(member, ctx, findings);
+}
+
+async function runLocalCompleteness(member: ReviewPanelMember, ctx: LocalReviewerContext): Promise<void> {
+  const targets = await readTargetContents(ctx.targetDir, ctx.targetPaths);
+  const findings: Array<Record<string, unknown>> = [];
+  const hasSpecRef = targets.some((t) => /SPEC-|AC-/.test(t.content));
+  if (ctx.specACs.length > 0 && !hasSpecRef) {
+    findings.push(
+      findingFor(member.id, "Medium", targets[0]?.file, null, "completeness-spec-link", "Implementasi tanpa tautan spesifikasi",
+        "Tak ada rujukan SPEC-/AC- di berkas yang diaudit — sinkronisasi dokumen patut diverifikasi", "Tautkan implementasi ke SPEC/AC atau perbarui dokumen Diátaxis.",
+        "Pemindaian konten target tak menemukan token SPEC-/AC-", "medium"),
+    );
+  }
+  await writeLocalReview(member, ctx, findings);
+}
+
+async function runLocalGeneric(member: ReviewPanelMember, ctx: LocalReviewerContext): Promise<void> {
+  await writeLocalReview(member, ctx, []);
+}
+
+/** Worker lokal deterministik per reviewer-id (dipakai CLI --auto; sesi omp memakai task isolated:true). */
+export function localReviewWorkerFor(memberId: string): (member: ReviewPanelMember, ctx: LocalReviewerContext) => Promise<void> {
+  if (memberId === "bmad_adversarial") return runLocalAdversarial;
+  if (memberId === "bmad_gap_verifier") return runLocalGapVerifier;
+  if (memberId === "bmad_structural") return runLocalStructural;
+  if (memberId === "bmad_completeness") return runLocalCompleteness;
+  return runLocalGeneric;
+}
+
+export async function runLocalReviewWorker(
+  member: ReviewPanelMember,
+  attempt: { storyId: string; reviewDir: string; targetDir: string; targetPaths?: string[] },
+): Promise<void> {
+  const targetPaths = attempt.targetPaths && attempt.targetPaths.length > 0 ? attempt.targetPaths : [];
+  const ctx: LocalReviewerContext = {
+    storyId: attempt.storyId,
+    targetDir: attempt.targetDir,
+    reviewDir: attempt.reviewDir,
+    targetPaths,
+    specACs: await loadSpecACs(attempt.targetDir, attempt.storyId),
+    nowIso: new Date().toISOString(),
+  };
+  await localReviewWorkerFor(member.id)(member, ctx);
+}
+
 
 export async function dispatchIsolatedReview(
   storyId: string,
@@ -168,28 +374,33 @@ export async function dispatchIsolatedReview(
 
   const files: string[] = [];
   const missing: string[] = [];
-  const writes = panel.map(async (member) => {
+  const failed: string[] = [];
+  // ATOMIC FAN-OUT (upstream #2565): spawn SELURUH runner dulu via Promise.all,
+  // baru baca hasilnya. Tanpa runReviewer, hanya reservasi slot [] (bukan bukti).
+  if (opts.runReviewer) {
+    const runs = panel.map(async (member) => {
+      try {
+        await opts.runReviewer!(member, { storyId, reviewDir, targetDir });
+      } catch {
+        failed.push(member.id);
+      }
+    });
+    await Promise.all(runs);
+  }
+  const checks = panel.map(async (member) => {
     const filePath = path.join(reviewDir, `${storyId}-${member.id}.json`);
     try {
-      // Anti-Mocking (D-03): Jika berkas JSON sudah ditulis oleh subagent/sesi reviewer,
-      // validasi strukturnya tanpa menimpa. Format canonical: envelope
+      // Anti-Mocking (D-03): berkas sesi tidak ditimpa. Format canonical envelope
       // {reviewer, story, completedAt, findings}; bare array = legacy (temuan tetap
       // dinilai, [] = RESERVASI SLOT, bukan bukti review).
       const existing = await fs.readFile(filePath, "utf-8");
-      const parsed: unknown = JSON.parse(existing);
-      const valid =
-        Array.isArray(parsed) ||
-        (parsed !== null &&
-          typeof parsed === "object" &&
-          "findings" in parsed &&
-          Array.isArray(parsed.findings));
-      if (!valid) {
+      if (!isFindingsShape(JSON.parse(existing))) {
         throw new Error(`Review file ${filePath} must contain a findings array or envelope`);
       }
     } catch (err: unknown) {
       const isEnoent =
         err instanceof Error && "code" in err && typeof err.code === "string" && err.code === "ENOENT";
-      if (isEnoent) {
+      if (isEnoent && !opts.runReviewer) {
         // Berkas belum ada di disk; reservasi slot bersih []
         await fs.writeFile(filePath, "[]\n", "utf-8");
       } else {
@@ -200,14 +411,11 @@ export async function dispatchIsolatedReview(
     files.push(filePath);
   });
 
-  await Promise.all(writes);
+  await Promise.all(checks);
 
-  return { dispatched: panel.length, files, missing, panel, reviewDir };
+  return { dispatched: panel.length, files, missing, failed, panel, reviewDir };
 }
 
-/**
- * Helper untuk prewalk INV-01: deteksi runReview inline tanpa dispatchIsolatedReview
- */
 export function isReviewIsolatedCode(code: string): boolean {
   const hasDirectPrewalk = /runPrewalkScan\s*\(/.test(code);
   const hasDispatch = /dispatchIsolatedReview\s*\(/.test(code);

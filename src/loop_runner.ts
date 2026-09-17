@@ -9,13 +9,13 @@ import {
   type Story,
 } from "./prewalk";
 import { canWriteStatus } from "./status";
-import { loadStoryDetail, partitionTargetFiles } from "./story_spec";
+import { loadStoryDetail, partitionTargetFiles, type StoryDetail } from "./story_spec";
 import {
   runHarnessSession,
   type HarnessExecutor,
   type HarnessSessionResult,
 } from "./harness/omp_adapter";
-import { buildDevPrompt, buildReviewPrompt } from "./harness/prompts";
+import { buildDevPrompt, buildReviewPrompt, buildCommitPrompt } from "./harness/prompts";
 import { buildReviewPanel } from "./reviewer";
 import { loadOmpimpaConfig } from "../hooks/ompimpa-guard";
 import { aggregateReviews } from "./triage";
@@ -87,10 +87,38 @@ export interface HarnessPhaseConfig {
   runSession?: typeof runHarnessSession;
   modelDev?: string;
   modelReview?: string;
-  /** Timeout per sesi harness (default 600_000). */
+  modelCommit?: string;
+  /** Timeout sesi omp -p; bila kosong dibaca dari [harness].session_timeout_ms. */
   sessionTimeoutMs?: number;
+  /** Timeout fase lokal (scoped-test re-run, agregasi review); bila kosong dari [harness].phase_timeout_ms. */
+  phaseTimeoutMs?: number;
   binary?: string;
 }
+const DEFAULT_SESSION_TIMEOUT_MS = 600_000;
+const DEFAULT_PHASE_TIMEOUT_MS = 60_000;
+
+/** Timeout sesi omp -p dari [harness].session_timeout_ms (default 600000). */
+export function resolveSessionTimeoutMs(targetDir: string, override?: number): number {
+  if (typeof override === "number" && Number.isFinite(override) && override > 0) return override;
+  try {
+    const cfg = loadOmpimpaConfig(targetDir);
+    const v = cfg.harness?.session_timeout_ms;
+    if (typeof v === "number" && Number.isFinite(v) && v > 0) return v;
+  } catch {}
+  return DEFAULT_SESSION_TIMEOUT_MS;
+}
+
+/** Timeout fase lokal dari [harness].phase_timeout_ms (default 60000). */
+export function resolvePhaseTimeoutMs(targetDir: string, override?: number): number {
+  if (typeof override === "number" && Number.isFinite(override) && override > 0) return override;
+  try {
+    const cfg = loadOmpimpaConfig(targetDir);
+    const v = cfg.harness?.phase_timeout_ms;
+    if (typeof v === "number" && Number.isFinite(v) && v > 0) return v;
+  } catch {}
+  return DEFAULT_PHASE_TIMEOUT_MS;
+}
+
 
 export interface StoryRunnerOptions {
   repoRoot?: string;
@@ -400,8 +428,11 @@ async function runDevHarnessPhase(
     markerRel,
     remediationFindings,
   });
+  // INVARIANT: timeout dua lapis — sesi omp -p (sessionTimeout, default 10 mnt,
+  // menampung fan-out 10 reviewer) vs scoped-test re-run lokal (phaseTimeout).
+  const sessionTimeout = resolveSessionTimeoutMs(targetDir, harness.sessionTimeoutMs);
+  const phaseTimeout = resolvePhaseTimeoutMs(targetDir, harness.phaseTimeoutMs ?? timeoutMs);
   const runSession = harness.runSession || runHarnessSession;
-  const sessionTimeout = harness.sessionTimeoutMs ?? 600_000;
   let session: HarnessSessionResult;
   try {
     session = await runSession(
@@ -435,7 +466,7 @@ async function runDevHarnessPhase(
   if (proof.exit !== 0) {
     return fail(`Dev session reported failing tests (exit ${proof.exit})`, session.stdoutTail);
   }
-  const verify = await executor(proof.argv[0], proof.argv.slice(1), targetDir, env, timeoutMs);
+  const verify = await executor(proof.argv[0], proof.argv.slice(1), targetDir, env, phaseTimeout);
   if (verify.code !== 0) {
     return fail(
       `Independent scoped-test re-run failed (exit ${verify.code}): ${verify.stderr || verify.stdout}`,
@@ -483,6 +514,9 @@ async function runReviewHarnessPhase(
     reviewerIds: panelIds,
     markerRel,
   });
+  // INVARIANT: sesi review (sessionTimeout, 10 mnt, fan-out 10) vs agregasi lokal (phaseTimeout).
+  const sessionTimeout = resolveSessionTimeoutMs(targetDir, harness.sessionTimeoutMs);
+  const phaseTimeout = resolvePhaseTimeoutMs(targetDir, harness.phaseTimeoutMs ?? timeoutMs);
   const runSession = harness.runSession || runHarnessSession;
   let session: HarnessSessionResult;
   try {
@@ -494,7 +528,7 @@ async function runReviewHarnessPhase(
         prompt,
         model: harness.modelReview,
         binary: harness.binary,
-        timeoutMs: harness.sessionTimeoutMs ?? 600_000,
+        timeoutMs: sessionTimeout,
         markerFile: markerRel,
       },
       executor
@@ -504,13 +538,17 @@ async function runReviewHarnessPhase(
     return fail(`Harness review session crashed: ${msg}`);
   }
   if (session.status !== "completed" || !session.marker) {
+    // R2: sesi timeout/error TANPA marker — agregasi parsial deterministik atas
+    // file yang sudah tertulis (bukti 20-3: 6/7 envelope ada, koordinator tak kembali).
+    // File hilang = P1 genuine; verdict tetap gagal eksplisit agar retry dapat remediation.
+    const partial = await executor("bun", ["run", cliPath, "review", "--story", storyId], targetDir, env, phaseTimeout);
     return fail(
-      `Harness review session ${session.status} (exit ${session.exitCode}): ${session.stderrTail}`,
+      `Harness review session ${session.status} (exit ${session.exitCode}): ${session.stderrTail} — agregasi parsial lokal exit ${partial.code}: ${partial.stdout || partial.stderr}`,
       session.stdoutTail
     );
   }
   // Agregasi lokal deterministik TANPA --auto: tidak ada stub, file hilang = P1 genuine.
-  return executor("bun", ["run", cliPath, "review", "--story", storyId], targetDir, env, timeoutMs);
+  return executor("bun", ["run", cliPath, "review", "--story", storyId], targetDir, env, phaseTimeout);
 }
 
 /**
@@ -524,7 +562,7 @@ export async function runStoryPhases(
   const targetDir = path.resolve(options.targetDir || options.repoRoot || process.cwd());
   const executor = options.executor || defaultSubprocessExecutor;
   const cliPath = path.join(REPO_ROOT, "src", "cli.ts");
-  const timeoutMs = options.timeoutMs ?? 60_000;
+  const timeoutMs = resolvePhaseTimeoutMs(targetDir, options.timeoutMs);
 
   const harnessEnabled = options.harness?.enabled === true;
   const phases: Array<{
@@ -630,23 +668,166 @@ export async function runStoryPhases(
     phases: phaseRecords,
   };
 }
+export interface SemanticCommitFallbackInput {
+  story: StoryDetail;
+  epicId?: string;
+  diffStat: string;
+  nameStatus: string;
+  diffSnippet: string;
+}
+
+export function generateSemanticCommitFallback(input: SemanticCommitFallbackInput): {
+  commitHeader: string;
+  commitBody: string;
+} {
+  const { story, epicId, diffStat, nameStatus } = input;
+  const title = story.title || story.id;
+  const titleLower = title.toLowerCase();
+
+  // 1. Parse changed files
+  const changedFiles = nameStatus
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => {
+      const parts = l.split(/\s+/);
+      return { status: parts[0] || "M", path: parts[1] || "" };
+    });
+
+  // 2. Determine type
+  let type = "feat";
+  if (
+    changedFiles.length > 0 &&
+    changedFiles.every(
+      (f) =>
+        f.path.includes("test/") ||
+        f.path.endsWith("_test.exs") ||
+        f.path.endsWith(".test.ts") ||
+        f.path.endsWith(".test.js")
+    )
+  ) {
+    type = "test";
+  } else if (
+    changedFiles.length > 0 &&
+    changedFiles.every((f) => f.path.startsWith("docs/") || f.path.endsWith(".md"))
+  ) {
+    type = "docs";
+  } else if (
+    titleLower.includes("refactor") ||
+    titleLower.includes("penertiban") ||
+    titleLower.includes("migrasi")
+  ) {
+    type = "refactor";
+  } else if (
+    titleLower.includes("fix") ||
+    titleLower.includes("perbaikan") ||
+    titleLower.includes("koreksi") ||
+    titleLower.includes("bug")
+  ) {
+    type = "fix";
+  } else if (
+    titleLower.includes("perf") ||
+    titleLower.includes("optimasi") ||
+    titleLower.includes("kecepatan")
+  ) {
+    type = "perf";
+  } else if (
+    titleLower.includes("test") ||
+    titleLower.includes("pengujian") ||
+    titleLower.includes("atdd")
+  ) {
+    type = "test";
+  } else if (titleLower.includes("doc") || titleLower.includes("panduan")) {
+    type = "docs";
+  }
+
+  // 3. Determine scope
+  let scope = (story.epic || epicId || "").toLowerCase().replace(/^epic-?/, "");
+  const primaryTarget = story.target_files[0] || "";
+  const allPaths = changedFiles.map((f) => f.path).concat(primaryTarget).join(" ");
+  if (allPaths.includes("/sales/")) scope = "sales";
+  else if (allPaths.includes("/finance/")) scope = "finance";
+  else if (allPaths.includes("/procurement/")) scope = "procurement";
+  else if (allPaths.includes("/admin/")) scope = "admin";
+  else if (allPaths.includes("journal_entry") || allPaths.includes("accounting")) scope = "accounting";
+  else if (allPaths.includes("/form") || allPaths.includes("form_")) scope = "form";
+  else if (allPaths.includes("/components/")) scope = "ui";
+
+  const commitHeader = `${type}(${scope || "app"}): ${title} (${story.id})`;
+
+  // 4. Build rich body
+  const bodyBullets: string[] = [];
+
+  if (changedFiles.length > 0) {
+    const fileSummary = changedFiles
+      .slice(0, 6)
+      .map((f) => {
+        const action = f.status === "A" ? "tambah" : f.status === "D" ? "hapus" : "ubah";
+        return `${action} ${f.path}`;
+      })
+      .join(", ");
+    bodyBullets.push(
+      `- Perubahan berkas (${changedFiles.length} file): ${fileSummary}${changedFiles.length > 6 ? " …" : ""}`
+    );
+  }
+
+  if (story.ac && story.ac.length > 0) {
+    const acSummary = story.ac
+      .slice(0, 3)
+      .map((ac) => `${ac.id}: ${ac.then}`)
+      .join("; ");
+    bodyBullets.push(`- Kriteria terpenuhi: ${acSummary}`);
+  }
+
+  bodyBullets.push(`- Story: ${story.id}`);
+  if (epicId || story.epic) bodyBullets.push(`- Epic: ${epicId || story.epic}`);
+  bodyBullets.push("- Quality: Triage 100/100 PASS (TEA Architecture)");
+
+  const commitBody = [commitHeader, "", ...bodyBullets].join("\n");
+  return { commitHeader, commitBody };
+}
+
+export interface CommitStoryOptions {
+  harness?: HarnessPhaseConfig;
+  env?: NodeJS.ProcessEnv;
+  timeoutMs?: number;
+}
+
 /**
  * Automatically creates a conventional semantic commit for a completed story
  * upon 100/100 triage PASS.
+ * Uses ompimpa-commit agent (model smol) when harness is enabled, with a rich
+ * diff-aware fallback.
  */
 export async function commitStoryChanges(
   targetDir: string,
   storyId: string,
-  executor: SubprocessExecutor = defaultSubprocessExecutor
+  executor: SubprocessExecutor = defaultSubprocessExecutor,
+  options: CommitStoryOptions = {}
 ): Promise<{ success: boolean; commitMessage?: string; error?: string }> {
-  // Check if .git directory exists
+  // Check if targetDir is inside a git repository (supports worktrees, submodules, root, and subdirectories)
+  let isGitRepo = false;
   try {
-    const gitDir = path.join(targetDir, ".git");
-    const stat = await fs.stat(gitDir);
-    if (!stat.isDirectory()) return { success: true };
-  } catch {
+    const gitCheck = await executor("git", ["rev-parse", "--is-inside-work-tree"], targetDir);
+    if (gitCheck.code === 0 && (gitCheck.stdout.trim() === "true" || gitCheck.stdout.trim().length > 0)) {
+      isGitRepo = true;
+    }
+  } catch {}
+
+  if (!isGitRepo) {
+    try {
+      const gitDir = path.join(targetDir, ".git");
+      const stat = await fs.stat(gitDir);
+      if (stat.isDirectory() || stat.isFile()) {
+        isGitRepo = true;
+      }
+    } catch {}
+  }
+
+  if (!isGitRepo) {
     return { success: true }; // Not a git repository
   }
+
   // 0. Format Elixir code before staging if mix.exs exists (pre-commit requirement)
   try {
     const mixPath = path.join(targetDir, "mix.exs");
@@ -670,52 +851,97 @@ export async function commitStoryChanges(
   }
 
   // 3. Load story detail to construct Semantic Commit message
-  let type = "feat";
-  let scope = "app";
-  let title = storyId;
+  let storyDetail: StoryDetail = {
+    id: storyId,
+    title: storyId,
+    epic: "",
+    target_files: [],
+    test_files: [],
+    ac: [],
+    dependencies: [],
+  };
   let epicId = "";
 
   try {
     const { story, epic } = await loadStoryDetail(storyId, targetDir);
-    title = story.title;
+    storyDetail = story;
     epicId = story.epic || (epic ? epic.id : "");
-
-    const titleLower = story.title.toLowerCase();
-    if (titleLower.includes("refactor") || titleLower.includes("penertiban") || titleLower.includes("migrasi")) {
-      type = "refactor";
-    } else if (titleLower.includes("fix") || titleLower.includes("perbaikan") || titleLower.includes("koreksi")) {
-      type = "fix";
-    } else if (titleLower.includes("test") || titleLower.includes("pengujian") || titleLower.includes("atdd")) {
-      type = "test";
-    } else if (titleLower.includes("doc") || titleLower.includes("panduan")) {
-      type = "docs";
-    }
-
-    // Determine scope
-    scope = (story.epic || "").toLowerCase().replace(/^epic-?/, "");
-    const primaryTarget = story.target_files[0] || "";
-    if (primaryTarget.includes("/sales/")) scope = "sales";
-    else if (primaryTarget.includes("/finance/")) scope = "finance";
-    else if (primaryTarget.includes("/procurement/")) scope = "procurement";
-    else if (primaryTarget.includes("/admin/")) scope = "admin";
-    else if (primaryTarget.includes("journal_entry") || primaryTarget.includes("accounting")) scope = "accounting";
-    else if (primaryTarget.includes("/components/")) scope = "ui";
   } catch {
     // Fallback if stories.yaml cannot be parsed
   }
 
-  const commitHeader = `${type}(${scope || "app"}): ${title} (${storyId})`;
-  const commitBody = [
-    commitHeader,
-    "",
-    `- Story: ${storyId}`,
-    epicId ? `- Epic: ${epicId}` : null,
-    "- Quality: Triage 100/100 PASS (TEA Architecture)",
-  ]
-    .filter(Boolean)
-    .join("\n");
+  const statRes = await executor("git", ["diff", "--cached", "--stat"], targetDir);
+  const diffStat = statRes.stdout.trim();
 
-  // 4. Execute git commit
+  const nameStatusRes = await executor("git", ["diff", "--cached", "--name-status"], targetDir);
+  const nameStatus = nameStatusRes.stdout.trim();
+
+  const diffFullRes = await executor("git", ["diff", "--cached"], targetDir);
+  const maxDiffLen = 6_000;
+  const diffSnippet =
+    diffFullRes.stdout.length > maxDiffLen
+      ? diffFullRes.stdout.slice(0, maxDiffLen) + "\n...[truncated staged diff]"
+      : diffFullRes.stdout;
+
+  let commitBody = "";
+  let commitHeader = "";
+
+  // 4. Try agent-based semantic commit via harness if enabled
+  if (options.harness?.enabled) {
+    const markerRel = `_ompimpa/runs/${storyId}-commit.result.json`;
+    const prompt = buildCommitPrompt({
+      story: storyDetail,
+      specRel: `_ompimpa/specs/SPEC-${storyId}.md`,
+      targetFiles: storyDetail.target_files,
+      diffStat,
+      nameStatus,
+      diffSnippet,
+      markerRel,
+    });
+
+    const commitModel = options.harness.modelCommit || "smol";
+    const sessionTimeout = resolveSessionTimeoutMs(targetDir, options.harness.sessionTimeoutMs);
+    const runSession = options.harness.runSession || runHarnessSession;
+
+    try {
+      const session = await runSession(
+        {
+          role: "commit",
+          storyId,
+          targetDir,
+          prompt,
+          model: commitModel,
+          binary: options.harness.binary,
+          timeoutMs: sessionTimeout,
+          markerFile: markerRel,
+          env: options.env,
+        },
+        executor
+      );
+
+      if (session.status === "completed" && session.marker?.commitMessage) {
+        commitBody = session.marker.commitMessage.trim();
+        commitHeader = commitBody.split("\n")[0].trim();
+      }
+    } catch {
+      // Graceful fallback to deterministic commit generator
+    }
+  }
+
+  // 5. Fallback to smart diff-aware commit generator if agent didn't provide message
+  if (!commitBody) {
+    const fallback = generateSemanticCommitFallback({
+      story: storyDetail,
+      epicId,
+      diffStat,
+      nameStatus,
+      diffSnippet,
+    });
+    commitBody = fallback.commitBody;
+    commitHeader = fallback.commitHeader;
+  }
+
+  // 6. Execute git commit
   const commitRes = await executor("git", ["commit", "-m", commitBody], targetDir);
   if (commitRes.code !== 0) {
     return {
@@ -760,8 +986,7 @@ export async function runEpicLoop(options: EpicLoopOptions): Promise<EpicLoopRes
   const targetDir = path.resolve(options.targetDir || process.cwd());
   const maxRetries = options.maxRetries ?? 3;
   const executor = options.executor || defaultSubprocessExecutor;
-  const timeoutMs = options.timeoutMs ?? 60_000;
-
+  const timeoutMs = resolvePhaseTimeoutMs(targetDir, options.timeoutMs);
   // Verify target directory exists (SEC-PATH-TRAVERSAL-BOUNDARY)
   try {
     const stat = await fs.stat(targetDir);
@@ -888,6 +1113,40 @@ export async function runEpicLoop(options: EpicLoopOptions): Promise<EpicLoopRes
 
     // Skip if already done
     if (currentStatus === "done" && doneIds.has(storyId)) {
+      // Guard against dirty uncommitted changes left behind for this story
+      let hasUncommitted = false;
+      try {
+        const { story } = await loadStoryDetail(storyId, targetDir);
+        const { targetFiles, testFiles } = partitionTargetFiles(story, targetDir);
+        const filesToCheck = [...targetFiles, ...testFiles].filter(Boolean);
+        if (filesToCheck.length > 0) {
+          const statusRes = await executor("git", ["status", "--porcelain", "--", ...filesToCheck], targetDir);
+          if (statusRes.code === 0 && statusRes.stdout.trim().length > 0) {
+            hasUncommitted = true;
+          }
+        }
+      } catch {}
+
+      if (hasUncommitted) {
+        console.log(`⚠️ Story ${storyId} berstatus done tetapi memiliki perubahan belum di-commit. Menjalankan auto-commit...`);
+        try {
+          const commitRes = await commitStoryChanges(targetDir, storyId, executor, {
+            harness: options.harness,
+            env: options.env,
+          });
+          if (commitRes.commitMessage) {
+            console.log(`📦 [Auto-Commit] ${commitRes.commitMessage}`);
+          } else if (!commitRes.success && commitRes.error) {
+            return failEpic(
+              `Story ${storyId} done but uncommitted changes failed to commit: ${commitRes.error} — resolve git state, then re-run`
+            );
+          }
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          return failEpic(`Story ${storyId} commit crashed: ${msg}`);
+        }
+      }
+
       completedStories.push(storyId);
       history.push({
         storyId,
@@ -962,7 +1221,10 @@ export async function runEpicLoop(options: EpicLoopOptions): Promise<EpicLoopRes
         // loop berhenti agar user membereskan git state, bukan menumpuk diam-diam.
         let commitMessage: string | undefined;
         try {
-          const commitRes = await commitStoryChanges(targetDir, storyId, executor);
+          const commitRes = await commitStoryChanges(targetDir, storyId, executor, {
+            harness: options.harness,
+            env: options.env,
+          });
           if (commitRes.commitMessage) {
             commitMessage = commitRes.commitMessage;
             console.log(`📦 [Auto-Commit] ${commitRes.commitMessage}`);

@@ -22,9 +22,10 @@ auto_macro_review_in_dev = true  # Jalankan review otomatis sebelum commit di ak
 auto_triage_and_fix = true       # Otomatis triage temuan P0/P1 dan perbaiki sebelum commit final
 
 [quality.review]
-enable_spec_review = true        # Review Fungsional: Audit Source Code vs AC Gherkin (Agus Salim) — akan di-split 3/4 lens di B-03
+enable_spec_review = true        # Review Fungsional: Audit Source Code vs AC Gherkin (Agus Salim) — di-split 4 lens B-03
 enable_tech_review = true        # Review Teknis: Audit Kepatuhan Teknis Elixir/Phoenix (Panel 6 Spesialis)
-parallel_reviewers = 6           # Panel 6 subagent paralel: IronLaw, Security, QA/Test, Compiler, Ecto/Ash, LiveView/Oban (total 7 dengan spec)
+bmad_lens_count = 4              # B-03: Split Spec 1→4 BMAD lens — total panel 10 (4 spec + 6 tech), sinkron upstream BMAD 4
+parallel_reviewers = 6           # Panel 6 subagent paralel: IronLaw, Security, QA/Test, Compiler, Ecto/Ash, LiveView/Oban (total 10 dengan spec)
 max_triage_fix_cycles = 3        # [v2 ADR-001] Batas siklus perbaikan otomatis sebelum eskalasi (was 2, sinkron agyimpa 3)
 scoring_weights = { Critical = 30, High = 15, Medium = 5, Low = 2 } # [v2] port agyimpa criteria_registry_35.json
 allow_p2_nits = false            # [v2] P2 Low tetap BLOCK (was allow), sinkron agyimpa policy.toml allow_p2_nits=false
@@ -51,7 +52,7 @@ steps = [
 [quality.verify.tier1] # Inner Loop <2s — blocking per story
 steps = ["compile --warnings-as-errors", "format --check-formatted"]
 [quality.verify.tier2] # Per-Story Gate <10s — blocking per story
-steps = ["test --stale"] # + 7 reviewers + triage 100/100 (B-01/B-02)
+steps = ["test --stale"] # + 10 reviewers + triage 100/100 (B-01/B-02/B-03)
 [quality.verify.tier3] # Background Audit — non-blocking
 steps = ["test", "credo --strict", "sobelow --strict --format json"]
 
@@ -68,7 +69,8 @@ use_git_worktrees = true         # Eksekusi task paralel di Git Worktree terisol
 binary = "omp"                   # Biner harness yang di-spawn per fase code/review
 #model_dev = "default"           # Model sesi DEV (fuzzy match); kosong = default sesi
 #model_review = "default"        # Model sesi REVIEW; kosong = default sesi
-#session_timeout_ms = 600000    # Timeout per sesi harness (10 menit)
+#session_timeout_ms = 600000    # Timeout per sesi harness (10 menit, menampung fan-out 10 reviewer)
+#phase_timeout_ms = 60000       # Timeout fase lokal: scoped-test re-run + agregasi review (bukan sesi)
 # ==========================================
 # Pemetaan Model Subagent (Terkoneksi ke OMP Roles)
 # ==========================================

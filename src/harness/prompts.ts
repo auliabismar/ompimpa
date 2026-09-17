@@ -72,15 +72,58 @@ export interface ReviewPromptInput {
   /** Relatif terhadap targetDir. */
   markerRel: string;
 }
+/** R4: batch fan-out — spec lens dulu (ringan, cepat), tech panel menyusul. */
+export interface ReviewBatch {
+  name: string;
+  reviewerIds: string[];
+}
+
+export function partitionReviewBatches(reviewerIds: string[]): ReviewBatch[] {
+  const spec = reviewerIds.filter((id) => id.startsWith("bmad_") || id === "ompimpa-prd");
+  const tech = reviewerIds.filter((id) => !(id.startsWith("bmad_") || id === "ompimpa-prd"));
+  if (spec.length === 0 || tech.length === 0) return [{ name: "panel", reviewerIds }];
+  return [
+    { name: "spec", reviewerIds: spec },
+    { name: "tech", reviewerIds: tech },
+  ];
+}
+
+
+const REVIEWER_AGENT_BY_ID: Record<string, string> = {
+  bmad_adversarial: "ompimpa-triz",
+  bmad_gap_verifier: "scout",
+  bmad_structural: "scout",
+  bmad_completeness: "scout",
+  "ompimpa-prd": "ompimpa-prd",
+  "ompimpa-ironlaw": "ompimpa-ironlaw",
+  "ompimpa-security": "ompimpa-security",
+  "ompimpa-test": "ompimpa-test",
+  "ompimpa-verify": "ompimpa-verify",
+  "ompimpa-ash": "ompimpa-ash",
+  "ompimpa-ecto": "ompimpa-ecto",
+  "ompimpa-liveview": "ompimpa-liveview",
+  "ompimpa-oban": "ompimpa-oban",
+};
+
+/** INVARIANT: tiap reviewer-id terikat ke agent nyata; dilarang memakai agent generik "task". */
+export function reviewAgentFor(reviewerId: string): string {
+  return REVIEWER_AGENT_BY_ID[reviewerId] || "scout";
+}
 
 export function buildReviewPrompt(input: ReviewPromptInput): string {
+  const assignments = input.reviewerIds.map((id) => `- ${id} → agent "${reviewAgentFor(id)}"`).join("\n");
+  const batches = partitionReviewBatches(input.reviewerIds);
+  const batchPlan = batches.map((b, i) => `GELOMBANG ${i + 1}/${batches.length} (${b.name}, ${b.reviewerIds.length} reviewer): ${b.reviewerIds.join(", ")}`).join("\n");
   return [
     `Kamu adalah koordinator review OMP-IMPA untuk story ${input.story.id}: ${input.story.title}. SESI INI READ-ONLY terhadap kode produksi dan test — dilarang mengubah file apa pun kecuali berkas review di ${input.reviewDirRel}/.`,
     ``,
     `Spesifikasi acuan: ${input.specRel}`,
     `Berkas yang diaudit (hanya ini): ${[...input.targetFiles, ...input.testFiles].join(", ")}`,
     ``,
-    `TUGAS: fan-out via tool task ke ${input.reviewerIds.length} subagent reviewer, satu per ID berikut: ${input.reviewerIds.join(", ")}.`,
+    `TUGAS: fan-out via tool task per GELOMBANG berurutan (selesaikan gelombang 1 + tulis file-nya SEBELUM membuka gelombang 2) memakai pasangan TETAP berikut (dilarang memakai agent generik "task"):`,
+    assignments,
+    `RENCANA GELOMBANG:`,
+    batchPlan,
     `Tiap subagent membaca berkas audit secara independen lalu MENULIS file ${input.reviewDirRel}/${input.story.id}-<reviewer-id>.json dengan format ENVELOPE persis (bukan bare array):`,
     `{"reviewer":"<reviewer-id>","story":"${input.story.id}","completedAt":"<ISO-8601>","findings":[...]}`,
     `Tiap temuan WAJIB berbentuk: {"severity":"P0|P1|P2","file":"...","line":N,"ruleId":"...","message":"...","recommendation":"...","verdict":"high|medium|low|false|maybe-false","evidence":"satu-dua kalimat bukti dari kode"}.`,
@@ -91,5 +134,57 @@ export function buildReviewPrompt(input: ReviewPromptInput): string {
     ``,
     `PENYELESAIAN (aksi terakhir, wajib): tulis file ${input.markerRel} berisi JSON persis:`,
     `{"role":"review","story":"${input.story.id}","completed":true,"files":["${input.story.id}-<id>.json", "..."]}`,
+    `BATAS WAKTU (wajib): sisakan menit terakhir sesi untuk menulis marker — agregasi file yang SUDAH selesai dan tulis marker parsial (hanya file yang ada), jangan menunggu reviewer yang tak kunjung kembali hingga sesi dibunuh.`,
+  ].join("\n");
+}
+
+export interface CommitPromptInput {
+  story: StoryDetail;
+  specRel?: string;
+  targetFiles?: string[];
+  diffStat: string;
+  nameStatus: string;
+  diffSnippet: string;
+  markerRel: string;
+}
+
+export function buildCommitPrompt(input: CommitPromptInput): string {
+  const acList = (input.story.ac || [])
+    .map((ac) => `- ${ac.id}: Given ${ac.given} When ${ac.when} Then ${ac.then}`)
+    .join("\n");
+
+  return [
+    `Kamu adalah agen spesialis ompimpa-commit (model smol).`,
+    `TUGAS: Analisis perubahan kode pada git staged diff di bawah dan hasilkan PESAN COMMIT SEMANTIK (Conventional Commit) yang akurat dan deskriptif.`,
+    ``,
+    `METADATA CERITA:`,
+    `- Story ID: ${input.story.id}`,
+    `- Judul: ${input.story.title}`,
+    `- Epic: ${input.story.epic || ""}`,
+    ...(acList ? [`Kriteria Penerimaan:`, acList] : []),
+    ``,
+    `RINGKASAN PERUBAHAN FILE (git diff --stat):`,
+    input.diffStat,
+    ``,
+    `STATUS FILE (git diff --name-status):`,
+    input.nameStatus,
+    ``,
+    `POTONGAN PERUBAHAN DIFF:`,
+    input.diffSnippet,
+    ``,
+    `ATURAN FORMAT PESAN COMMIT (WAJIB):`,
+    `1. Header Conventional Commit: <type>(<scope>): <ringkasan singkat imperative> (${input.story.id})`,
+    `   - <type>: feat | fix | refactor | test | docs | perf`,
+    `   - <scope>: modul/domain spesifik dari file yang disentuh (misal: form, liveview, admin, finance, auth, ui)`,
+    `   - <ringkasan>: huruf kecil di awal, padat, tanpa titik di akhir baris header`,
+    `2. Baris kosong setelah header`,
+    `3. Body berupa poin-poin (- ) yang merinci perubahan konkret berdasarkan file nyata yang dimodifikasi, komponen yang ditambah/diubah/dihapus, dan perilaku baru sesuai AC`,
+    `4. Poin penutup menyertakan:`,
+    `   - Story: ${input.story.id}`,
+    ...(input.story.epic ? [`   - Epic: ${input.story.epic}`] : []),
+    `   - Quality: Triage 100/100 PASS (TEA Architecture)`,
+    ``,
+    `PENYELESAIAN (aksi terakhir, wajib): tulis file ${input.markerRel} berisi JSON persis:`,
+    `{"role":"commit","story":"${input.story.id}","completed":true,"commitMessage":"<pesan commit lengkap yang sudah diformat di atas>"}`,
   ].join("\n");
 }
