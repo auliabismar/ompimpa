@@ -58,6 +58,8 @@ Sidang Balairung Sari mengadopsi mekanisme **Party Mode Multi-Turn**. Anda memeg
   * **Mengarahkan konsensus**: *"Bagaimana jika kita gunakan Ash untuk core resource, tapi tetap pakai Ecto query custom untuk reporting?"*
 * Tokoh-tokoh akan menanggapi arahan Anda sekaligus saling menguji argumen rekan dewan (*cross-examination*).
 * ⛔ **Aturan Ketat**: Berkas risalah **BELUM** ditulis ke disk selama sidang berstatus terbuka.
+* 🛡️ **Invarian Eksekusi & Anti-Drift**: Selama sidang berstatus terbuka, sistem dilarang keras langsung mengeksekusi tool koding/investigasi (`grep`, `edit`, `bash`) untuk menjawab pertanyaan pengguna sebagai engineer mandiri. Pertanyaan teknis/kode wajib direspons melalui lensa dewan (terutama Djamaluddin Adinegoro `ompimpa-debug`) dan didebatkan bersama dewan tokoh.
+* 🏛️ **Jangkar Visual Turn**: Setiap respons dewan diawali `🏛️ **[STATUS: SIDANG BALAIRUNG TERBUKA]**` dan diakhiri penyerahan giliran ke Ketua Sidang (`👉 **Palu sidang berada di tangan Ketua Sidang...**`).
 
 ### Tahap 3: Penutupan Sidang & Dokumentasi Resmi (The Verdict)
 * Ketika Anda merasa musyawarah telah matang, ketuk palu penutupan sidang dengan salah satu perintah:
